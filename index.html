@@ -22,7 +22,6 @@
             padding: 12px;
             text-align: center;
             position: relative;
-            cursor: pointer;
             transition: all 0.3s ease;
             min-width: 150px;
         }
@@ -31,12 +30,6 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
         .node-details {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.5s ease-in-out, margin-top 0.5s ease-in-out;
-        }
-        .node.active .node-details {
-            max-height: 500px;
             margin-top: 12px;
         }
         .connector {
@@ -208,20 +201,20 @@
                          <h2 class="text-3xl font-bold text-[#435d7d]">SDXL: Base to Refined Workflow</h2>
                          <button class="gemini-button text-sm font-semibold py-2 px-3 rounded-md flex items-center" data-workflow="sdxl">✨ Explain</button>
                     </div>
-                    <p class="text-gray-600 mb-8">This workflow is a robust method for creating high-quality, detailed images with SDXL. We start by generating a solid composition with the base model, then pass it to a refiner and an upscaler to enhance resolution and add fine details. Click each node to see the recommended parameters for that stage.</p>
+                    <p class="text-gray-600 mb-8">This workflow is a robust method for creating high-quality, detailed images with SDXL. We start by generating a solid composition with the base model, then pass it to a refiner and an upscaler to enhance resolution and add fine details.</p>
                     
                     <h3 class="text-xl font-semibold mb-4 text-[#435d7d]">Part 1: Base Generation (1024x1024)</h3>
                     <div class="p-6 bg-gray-50 rounded-lg shadow-inner relative">
-                        <div class="flex items-center justify-around space-x-4">
-                            <div class="node" id="sdxl-node-1">
+                        <div class="flex items-start justify-around space-x-4">
+                            <div class="node">
                                 <p class="font-semibold">Load Checkpoint</p>
                                 <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg">
                                     <p><strong>Model:</strong> SDXL Base 1.0</p>
                                     <p><strong>Purpose:</strong> Sets up the foundational model for the entire workflow.</p>
                                 </div>
                             </div>
-                            <div class="text-gray-500 font-bold text-2xl">→</div>
-                             <div class="node" id="sdxl-node-2">
+                            <div class="text-gray-500 font-bold text-2xl pt-8">→</div>
+                             <div class="node">
                                 <p class="font-semibold">Prompt Text</p>
                                 <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg">
                                     <p><strong>Positive:</strong> Your detailed scene description.</p>
@@ -229,8 +222,8 @@
                                     <p><strong>Tip:</strong> Connect this to both KSamplers.</p>
                                 </div>
                             </div>
-                            <div class="text-gray-500 font-bold text-2xl">→</div>
-                            <div class="node" id="sdxl-node-3">
+                            <div class="text-gray-500 font-bold text-2xl pt-8">→</div>
+                            <div class="node">
                                 <p class="font-semibold">Base KSampler</p>
                                 <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg">
                                     <p><strong>Steps:</strong> 20-25</p>
@@ -246,16 +239,16 @@
 
                     <h3 class="text-xl font-semibold mt-8 mb-4 text-[#435d7d]">Part 2: Refinement & Upscale</h3>
                      <div class="p-6 bg-gray-50 rounded-lg shadow-inner relative">
-                        <div class="flex items-center justify-around space-x-4">
-                             <div class="node" id="sdxl-node-4">
+                        <div class="flex items-start justify-around space-x-4">
+                             <div class="node">
                                 <p class="font-semibold">Load Refiner</p>
                                 <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg">
                                     <p><strong>Model:</strong> SDXL Refiner 1.0</p>
                                     <p><strong>Purpose:</strong> Prepares the specialized detail-adding model.</p>
                                 </div>
                             </div>
-                            <div class="text-gray-500 font-bold text-2xl">→</div>
-                             <div class="node" id="sdxl-node-5">
+                            <div class="text-gray-500 font-bold text-2xl pt-8">→</div>
+                             <div class="node">
                                 <p class="font-semibold">Refiner KSampler</p>
                                 <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg">
                                     <p><strong>Input:</strong> Latent from Base KSampler</p>
@@ -264,8 +257,8 @@
                                     <p><strong>Sampler:</strong> Same as Base</p>
                                 </div>
                             </div>
-                            <div class="text-gray-500 font-bold text-2xl">→</div>
-                            <div class="node" id="sdxl-node-6">
+                            <div class="text-gray-500 font-bold text-2xl pt-8">→</div>
+                            <div class="node">
                                 <p class="font-semibold">Upscale (2x)</p>
                                 <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg">
                                     <p><strong>Node:</strong> Upscale Image (using model)</p>
@@ -283,20 +276,20 @@
                         <h2 class="text-3xl font-bold text-[#435d7d]">FLUX: Fast & High-Detail Workflow</h2>
                         <button class="gemini-button text-sm font-semibold py-2 px-3 rounded-md flex items-center" data-workflow="flux">✨ Explain</button>
                     </div>
-                    <p class="text-gray-600 mb-8">The FLUX model is designed for incredible speed and native high-resolution detail, reducing the need for complex refiner models. This workflow focuses on a direct generation followed by a simple upscale for a fast yet high-quality result. Click each node for details.</p>
+                    <p class="text-gray-600 mb-8">The FLUX model is designed for incredible speed and native high-resolution detail, reducing the need for complex refiner models. This workflow focuses on a direct generation followed by a simple upscale for a fast yet high-quality result.</p>
 
                     <h3 class="text-xl font-semibold mb-4 text-[#435d7d]">Direct High-Resolution Generation</h3>
                     <div class="p-6 bg-gray-50 rounded-lg shadow-inner relative">
-                        <div class="flex items-center justify-around space-x-4">
-                            <div class="node" id="flux-node-1">
+                        <div class="flex items-start justify-around space-x-4">
+                            <div class="node">
                                 <p class="font-semibold">Load Checkpoint</p>
                                 <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg">
                                     <p><strong>Model:</strong> Flux.1-schnell</p>
                                     <p><strong>Purpose:</strong> Select the main FLUX model.</p>
                                 </div>
                             </div>
-                            <div class="text-gray-500 font-bold text-2xl">→</div>
-                             <div class="node" id="flux-node-2">
+                            <div class="text-gray-500 font-bold text-2xl pt-8">→</div>
+                             <div class="node">
                                 <p class="font-semibold">FLUX KSampler</p>
                                 <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg">
                                     <p><strong>Steps:</strong> 12-18 (FLUX is efficient!)</p>
@@ -306,8 +299,8 @@
                                     <p><strong>Resolution:</strong> 1024x1024 or 1536x1536</p>
                                 </div>
                             </div>
-                            <div class="text-gray-500 font-bold text-2xl">→</div>
-                            <div class="node" id="flux-node-3">
+                            <div class="text-gray-500 font-bold text-2xl pt-8">→</div>
+                            <div class="node">
                                 <p class="font-semibold">VAE Decode</p>
                                 <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg">
                                     <p><strong>Purpose:</strong> Converts the latent image from the sampler into a viewable pixel image.</p>
@@ -413,22 +406,6 @@
                         icon.style.transform = 'rotate(180deg)';
                     }
                 });
-            });
-
-            const nodes = document.querySelectorAll('.node');
-            nodes.forEach(node => {
-                node.addEventListener('click', (event) => {
-                    event.stopPropagation();
-                    const wasActive = node.classList.contains('active');
-                    nodes.forEach(n => n.classList.remove('active'));
-                    if (!wasActive) {
-                       node.classList.add('active');
-                    }
-                });
-            });
-
-            document.addEventListener('click', () => {
-                 nodes.forEach(n => n.classList.remove('active'));
             });
 
             const mobileNav = document.getElementById('mobile-nav');
