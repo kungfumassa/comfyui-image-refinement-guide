@@ -1,576 +1,107 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Bot, Send, Wand2, Copy, Check, ChevronRight, Search as SearchIcon, Settings, HelpCircle, BookOpen, Sparkles, ChevronDown, Maximize2, Link as LinkIcon, Network, ZoomIn, Focus } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Slider } from "@/components/ui/slider";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+<div className="space-y-2">
+<Label>Negative Prompt</Label>
+<Textarea rows={3} value={negative} onChange={(e)=>setNegative(e.target.value)} />
+</div>
+<div className="flex items-center justify-between">
+<div className="flex items-center gap-2">
+<Label>Goal</Label>
+<Tabs value={goal} onValueChange={setGoal}>
+<TabsList>
+<TabsTrigger value="portrait">Portrait</TabsTrigger>
+<TabsTrigger value="widescreen">Widescreen</TabsTrigger>
+<TabsTrigger value="square">Square</TabsTrigger>
+</TabsList>
+</Tabs>
+</div>
+{model === "FLUX" && (
+<div className="flex items-center gap-3">
+<Label className="text-xs">Guidance</Label>
+<div className="w-28"><Slider defaultValue={[guidance]} min={2.5} max={8} step={0.5} onValueChange={(v)=>setGuidance(v[0])} /></div>
+<Badge variant="outline">{guidance.toFixed(1)}</Badge>
+</div>
+)}
+</div>
+<Separator className="my-2" />
+<div className="space-y-2">
+<Label>Positive Prompt</Label>
+<Textarea readOnly rows={4} value={builtPrompt} />
+<CopyButton text={builtPrompt} />
+</div>
+<div className="space-y-2">
+<Label>Recommended Settings</Label>
+<div className="rounded-xl border border-slate-800 p-3 text-xs space-y-1 bg-slate-950/50">
+<div>Model: <b>{model}</b></div>
+<div>Sampler: <b>{settingHint.sampler}</b></div>
+<div>Steps: <b>{settingHint.steps}</b> {model === "FLUX" ? `(CFG=1, guidance ~${settingHint.guidance || 4.5})` : `(CFG ≈ ${settingHint.cfg})`}</div>
+<div>Canvas: <b>{settingHint.size}</b></div>
+<div>Refine: <b>{settingHint.refine}</b></div>
+</div>
+</div>
+</CardContent>
+</Card>
+</aside>
 
-// =========================================================
-// Utilities
-// =========================================================
-function cx(...classes) {
-  return classes.filter(Boolean).join(" ");
+
+{/* Main content */}
+<main ref={contentRef} className="space-y-6">
+<SectionBase />
+<SectionRefine />
+<SectionTargeted />
+<SectionWorkflows />
+<SectionBest />
+<footer className="py-6 text-center text-xs text-slate-400">Built for ComfyUI creators. Tailwind + shadcn/ui • Interactive guide • On-page AI assistant</footer>
+</main>
+</div>
+
+
+{/* Floating Assistant */}
+<div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
+{openAssistant && (
+<Card className="w-[min(92vw,420px)] shadow-2xl border-emerald-600/30">
+<CardHeader className="pb-2">
+<CardTitle className="flex items-center gap-2 text-base"><Bot className="h-5 w-5 text-emerald-400"/> Comfy Assistant</CardTitle>
+<CardDescription>Generate prompts • Recommend samplers • Plan refinements</CardDescription>
+</CardHeader>
+<CardContent>
+<div className="h-64 overflow-y-auto rounded-lg border border-slate-800 p-3 bg-slate-950/50 space-y-3">
+{chat.map((m, i) => (
+<div key={i} className={cx("text-sm", m.role === "assistant" ? "text-slate-100" : "text-slate-300") }>
+<div className="text-xs uppercase tracking-wide mb-1 text-slate-400">{m.role}</div>
+<pre className="whitespace-pre-wrap leading-6">{m.text}</pre>
+</div>
+))}
+</div>
+<div className="mt-3 flex gap-2">
+<Input placeholder="Ask for a prompt, sampler, or step plan…" value={msg} onChange={(e)=>setMsg(e.target.value)} onKeyDown={(e)=> e.key === 'Enter' && handleSend()} />
+<Button onClick={handleSend} className="gap-2"><Send className="h-4 w-4"/>Send</Button>
+</div>
+<div className="mt-2 text-[11px] text-slate-400">Tip: try “generate prompt for cyberpunk alley portrait”, “sampler for SDXL face refine”, or “node graph for FLUX”.</div>
+</CardContent>
+</Card>
+)}
+<Button size="lg" className="rounded-full h-12 w-12 p-0 shadow-lg bg-emerald-600 hover:bg-emerald-500" onClick={()=>setOpenAssistant(s=>!s)}>
+<Bot className="h-5 w-5"/>
+</Button>
+</div>
+</div>
+</TooltipProvider>
+);
 }
 
-function CopyButton({ text, size = "sm", className }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <Button
-      size={size}
-      variant="secondary"
-      className={cx("gap-2", className)}
-      onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(text);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1200);
-        } catch {}
-      }}
-    >
-      {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-      {copied ? "Copied" : "Copy"}
-    </Button>
-  );
-}
-
-function Anchor({ id }) {
-  return <div id={id} className="absolute -top-28" />;
-}
-
-// =========================================================
-// Content Data (condensed from the full guide)
-// =========================================================
-const SECTIONS = [
-  { id: "base", title: "Base Generation" },
-  { id: "refine", title: "Refinement Process" },
-  { id: "targeted", title: "Targeted Enhancements" },
-  { id: "workflows", title: "Node Workflow Examples" },
-  { id: "best", title: "Best Practices" },
-];
-
-const DEFAULT_NEGATIVE = [
-  "lowres, jpeg artifacts, blurry, oversaturated, deformed, extra fingers, duplicate, text, watermark, logo, signature"
-].join(", ");
-
-const SAMPLER_RECS = {
-  SDXL: {
-    base: "DPM++ 2M Karras (20 steps), CFG 6.5–8.0",
-    refine: "Refiner pass 5–10 steps, denoise 0.25–0.4",
-    hiRes: "Img2Img 0.25–0.45 at higher res"
-  },
-  FLUX: {
-    base: "Euler a or DPM++ 2M Karras (20 steps), guidance 3.5–5.5 (CFG=1)",
-    refine: "Img2Img 0.2–0.35 at higher res",
-    hiRes: "Progressive upscale 1.5–2× + light refine"
-  }
-};
-
-const UPSCALERS = [
-  { name: "R-ESRGAN 4×", tip: "Good general-purpose detail." },
-  { name: "NMKD Superscale 2×/4×", tip: "Clean enlargement with decent texture." },
-  { name: "Latent upscalers", tip: "Use with a small refine pass for best results." },
-];
-
-// Simple flow nodes text for copy
-const FLOW_SDXL = `SDXL Base → KSampler (20 steps, CFG ~7) → VAE Decode → SDXL Refiner Img2Img (5–10 steps, denoise 0.3) → VAE Decode → Upscale (2×) → Img2Img Refine (0.3) → Save`;
-const FLOW_FLUX = `FLUX Model + Dual Encoders → KSampler (20 steps, guidance 3.5–5.5, CFG=1) → VAE Decode → Upscale (2×) → Img2Img Refine (0.25–0.35) → Save`;
-
-// =========================================================
-// Prompt Wizard logic
-// =========================================================
-function buildPrompt({ subject, scene, style, camera, lighting, quality, extras }) {
-  const parts = [subject, scene, style, camera, lighting, quality, extras].filter(Boolean);
-  const positive = parts.join(", ");
-  return positive.replace(/\s+,/g, ",").replace(/,,+/g, ",").trim();
-}
-
-function suggestSettings(model, goal) {
-  if (model === "SDXL") {
-    return {
-      steps: 20,
-      cfg: 7,
-      sampler: "DPM++ 2M Karras",
-      size: goal === "portrait" ? "1024×1280" : goal === "widescreen" ? "1280×720" : "1024×1024",
-      refine: "SDXL Refiner 5–10 steps @ denoise 0.3",
-    };
-  }
-  return {
-    steps: 20,
-    cfg: 1,
-    guidance: 4.5,
-    sampler: "Euler a",
-    size: goal === "portrait" ? "1024×1280" : goal === "widescreen" ? "1280×720" : "1024×1024",
-    refine: "Upscale 2× + Img2Img denoise 0.25–0.35",
-  };
-}
-
-// =========================================================
-// Heuristic Assistant (local, no external APIs)
-// =========================================================
-function localAssistant(message, state) {
-  const lower = message.toLowerCase();
-  const model = state.model;
-  const bullets = [];
-
-  if (/prompt/.test(lower)) {
-    const p = buildPrompt(state.prompt);
-    bullets.push(`Here’s a refined positive prompt: \n\n${p}`);
-    bullets.push(`Suggested negative: \n\n${state.negative || DEFAULT_NEGATIVE}`);
-  }
-  if (/sampler|steps|cfg|guidance/.test(lower)) {
-    const rec = SAMPLER_RECS[model];
-    bullets.push(`Sampler & guidance for ${model}:`);
-    bullets.push(`• Base: ${rec.base}`);
-    bullets.push(`• High-res refine: ${rec.hiRes}`);
-  }
-  if (/eyes|face|hands|skin|texture/.test(lower)) {
-    bullets.push("Targeted enhancement tips:");
-    bullets.push("• Make a soft mask (blur 8–16px) around the region.");
-    bullets.push("• Use Img2Img denoise 0.2–0.4 with a detail-focused sub-prompt (e.g., ‘sharp eyes, clean catchlights, natural skin pores’).");
-    bullets.push("• Work at cropped 1024×1024 or higher for local passes, then merge.");
-  }
-  if (/workflow|graph|nodes?/.test(lower)) {
-    bullets.push(model === "SDXL" ? `Node flow:\n${FLOW_SDXL}` : `Node flow:\n${FLOW_FLUX}`);
-  }
-  if (/upscale|resolution|hi[- ]?res/.test(lower)) {
-    bullets.push("Upscale strategy:");
-    bullets.push("• Prefer progressive 1.5–2× steps; refine lightly after each.");
-    bullets.push("• Try R-ESRGAN 4× or NMKD 2×/4×; follow with Img2Img 0.25–0.35.");
-  }
-  if (bullets.length === 0) {
-    bullets.push("I can help with: prompt crafting, sampler/CFG, SDXL refiner handoff, FLUX guidance, upscalers, and targeted inpaint.");
-    bullets.push("Ask ‘generate prompt for [subject] in [style]’ or ‘recommend sampler for [model] portrait’." );
-  }
-  return bullets.join("\n");
-}
-
-// =========================================================
-// Main Component
-// =========================================================
-export default function ComfyRefinementLab() {
-  const [model, setModel] = useState("SDXL");
-  const [query, setQuery] = useState("");
-  const [showTOC, setShowTOC] = useState(true);
-  const [openAssistant, setOpenAssistant] = useState(false);
-
-  const contentRef = useRef(null);
-
-  // Prompt wizard state
-  const [prompt, setPrompt] = useState({
-    subject: "A cinematic portrait of a woman in a mossy forest",
-    scene: "soft bokeh background, shallow depth of field",
-    style: "photorealistic, ultra-detailed, natural skin texture",
-    camera: "85mm lens, f/1.8",
-    lighting: "golden hour rim light, volumetric rays",
-    quality: "masterpiece, high dynamic range",
-    extras: "",
-  });
-  const [negative, setNegative] = useState(DEFAULT_NEGATIVE);
-  const [goal, setGoal] = useState("portrait");
-  const [guidance, setGuidance] = useState(4.5); // for FLUX display
-
-  const builtPrompt = useMemo(() => buildPrompt({ ...prompt }), [prompt]);
-  const settingHint = useMemo(() => suggestSettings(model, goal), [model, goal]);
-
-  // Assistant state
-  const [chat, setChat] = useState([
-    { role: "assistant", text: "Hi! I’m your on-page AI. Ask me to craft prompts, pick samplers/CFG, or plan a refinement pass." },
-  ]);
-  const [msg, setMsg] = useState("");
-
-  const handleSend = async () => {
-    if (!msg.trim()) return;
-    const userTurn = { role: "user", text: msg };
-    setChat((c) => [...c, userTurn]);
-    setMsg("");
-
-    // Local heuristic assistant
-    const reply = localAssistant(msg, { model, prompt, negative });
-    setChat((c) => [...c, { role: "assistant", text: reply }]);
-  };
-
-  const filteredSections = useMemo(() => {
-    if (!query.trim()) return SECTIONS;
-    const q = query.toLowerCase();
-    return SECTIONS.filter((s) => s.title.toLowerCase().includes(q));
-  }, [query]);
-
-  const scrollTo = (id) => {
-    const el = document.getElementById(id);
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-
-  // Content snippets per section (shortened for readability)
-  const SectionBase = () => (
-    <Card id="base" className="relative">
-      <Anchor id="base" />
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-2xl"><Wand2 className="h-6 w-6"/> Base Generation</CardTitle>
-        <CardDescription>
-          Load models/encoders, encode prompts, seed a latent, and sample a strong starting image. Toggle SDXL/FLUX to see tailored tips.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <Tabs defaultValue={model} onValueChange={setModel}>
-          <TabsList className="grid grid-cols-2 w-full">
-            <TabsTrigger value="SDXL">SDXL</TabsTrigger>
-            <TabsTrigger value="FLUX">FLUX</TabsTrigger>
-          </TabsList>
-          <TabsContent value="SDXL" className="space-y-4">
-            <ul className="list-disc pl-6 space-y-2 text-sm leading-6">
-              <li>Load <b>sd_xl_base_1.0</b> (CheckpointLoaderSimple) and VAE.</li>
-              <li>Encode positive & negative with SDXL text encoders (dual conditioning or combined node).</li>
-              <li>Initialize <b>Empty Latent</b>: 1024×1024 (or ~1MP equivalent).</li>
-              <li>Sample with <b>DPM++ 2M Karras</b>, ~20 steps, <b>CFG 6.5–8.0</b>.</li>
-              <li>Decode to image; this is your base for refinement.</li>
-            </ul>
-            <div className="text-xs text-muted-foreground">Sampler recs: {SAMPLER_RECS.SDXL.base}</div>
-          </TabsContent>
-          <TabsContent value="FLUX" className="space-y-4">
-            <ul className="list-disc pl-6 space-y-2 text-sm leading-6">
-              <li>Load <b>flux1-krea-dev</b> (or FP8) + <b>DualCLIPLoader</b> (clip_l + t5xxl) + <b>ae.safetensors</b>.</li>
-              <li>Use <b>ClipTextEncodeFlux</b>: concise style in clip_l, descriptive scene in t5xxl.</li>
-              <li>Empty latent 1024×1024. Sample ~20 steps. Keep <b>CFG=1</b>, set <b>guidance 3.5–5.5</b> in the encoder.</li>
-              <li>Decode to image; proceed to upscale/refine.</li>
-            </ul>
-            <div className="text-xs text-muted-foreground">Sampler/guidance recs: {SAMPLER_RECS.FLUX.base}</div>
-          </TabsContent>
-        </Tabs>
-      </CardContent>
-    </Card>
-  );
-
-  const SectionRefine = () => (
-    <Card id="refine" className="relative">
-      <Anchor id="refine" />
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-2xl"><ZoomIn className="h-6 w-6"/> Refinement Process</CardTitle>
-        <CardDescription>Progressively increase resolution and detail using refiners, upscalers, and light Img2Img passes.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <Accordion type="multiple" className="w-full">
-          <AccordionItem value="sdxl-refiner">
-            <AccordionTrigger>
-              SDXL Refiner Pass (2nd Stage)
-            </AccordionTrigger>
-            <AccordionContent>
-              <ol className="list-decimal pl-6 space-y-2 text-sm leading-6">
-                <li>Load <b>sd_xl_refiner_1.0</b>.</li>
-                <li>Encode a concise <b>refiner prompt</b> (aesthetic-forward; no new objects).</li>
-                <li>Encode your base image to latent; Img2Img with <b>denoise 0.25–0.4</b>, 5–10 steps.</li>
-                <li>Decode and compare. Expect better micro-detail and clarity.</li>
-              </ol>
-            </AccordionContent>
-          </AccordionItem>
-          <AccordionItem value="upscale">
-            <AccordionTrigger>
-              Upscaling & High-Res Fix (Model-Agnostic)
-            </AccordionTrigger>
-            <AccordionContent>
-              <ul className="list-disc pl-6 space-y-2 text-sm leading-6">
-                <li>Upscale with <b>R-ESRGAN 2×/4×</b> or <b>NMKD Superscale</b>.</li>
-                <li>Run a light Img2Img refine at the new size (<b>denoise 0.25–0.35</b>) to add real detail.</li>
-                <li>Prefer <b>progressive</b> 1.5–2× steps over one giant jump.</li>
-              </ul>
-              <div className="flex flex-wrap gap-2 mt-3">
-                {UPSCALERS.map((u) => (
-                  <Badge key={u.name} variant="secondary">{u.name}</Badge>
-                ))}
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-          <AccordionItem value="flux-hr">
-            <AccordionTrigger>
-              FLUX High-Res Refinement
-            </AccordionTrigger>
-            <AccordionContent>
-              <p className="text-sm leading-6">After 2× upscale, run FLUX Img2Img with the same prompt, <b>denoise 0.2–0.35</b>. This adds realism without changing composition.</p>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
-      </CardContent>
-    </Card>
-  );
-
-  const SectionTargeted = () => (
-    <Card id="targeted" className="relative">
-      <Anchor id="targeted" />
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-2xl"><Focus className="h-6 w-6"/> Targeted Enhancements</CardTitle>
-        <CardDescription>Refine faces, eyes, hands, and textures with masks and local passes.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4 text-sm leading-6">
-        <ul className="list-disc pl-6 space-y-2">
-          <li><b>Face detailer</b> workflow: detect → crop (≈1024) → local Img2Img (denoise 0.25–0.45, ‘sharp eyes, natural skin pores’) → merge with soft mask.</li>
-          <li><b>Eyes-only</b>: draw a soft mask around eyes; very low denoise (0.2–0.3) and a tight sub-prompt for catchlights/iris detail.</li>
-          <li><b>Texture regions</b>: mask clothing/background; run detail prompt; blend with mask blur 8–16px.</li>
-          <li>Maintain color consistency by using the same VAE or light color match if a pass shifts tones.</li>
-        </ul>
-      </CardContent>
-    </Card>
-  );
-
-  const SectionWorkflows = () => (
-    <Card id="workflows" className="relative">
-      <Anchor id="workflows" />
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-2xl"><Network className="h-6 w-6"/> Node Workflow Examples</CardTitle>
-        <CardDescription>Clickable flows for SDXL and FLUX. Copy the sequence as a build checklist.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="grid md:grid-cols-2 gap-4">
-          <Card className="border-dashed">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg">SDXL Base → Refiner → Upscale</CardTitle>
-              <CardDescription>20 steps base, 5–10 steps refiner, 2× upscale + light Img2Img.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <FlowDiagram
-                nodes={["SDXL Base", "KSampler", "Decode", "SDXL Refiner Img2Img", "Decode", "Upscale (2×)", "Img2Img Refine", "Save"]}
-              />
-              <CopyButton text={FLOW_SDXL} />
-            </CardContent>
-          </Card>
-          <Card className="border-dashed">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg">FLUX Base → Upscale → Img2Img</CardTitle>
-              <CardDescription>20 steps base, 2× upscale, denoise 0.25–0.35 refine.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <FlowDiagram
-                nodes={["FLUX + Dual Encoders", "KSampler (CFG=1)", "Decode", "Upscale (2×)", "Img2Img Refine", "Save"]}
-              />
-              <CopyButton text={FLOW_FLUX} />
-            </CardContent>
-          </Card>
-        </div>
-      </CardContent>
-    </Card>
-  );
-
-  const SectionBest = () => (
-    <Card id="best" className="relative">
-      <Anchor id="best" />
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-2xl"><Sparkles className="h-6 w-6"/> Best Practices</CardTitle>
-        <CardDescription>Quality, speed, and control—without over-refining.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="grid md:grid-cols-2 gap-6 text-sm leading-6">
-          <ul className="list-disc pl-6 space-y-2">
-            <li><b>Moderate guidance</b>: SDXL CFG 6.5–8.0; FLUX guidance 3.5–5.5 (keep CFG=1).</li>
-            <li><b>Steps budget</b>: split across stages (e.g., 20 base + 10 refine) for efficiency.</li>
-            <li><b>Progressive upscaling</b> beats one giant jump.</li>
-            <li><b>Low denoise</b> on local passes to preserve identity.</li>
-          </ul>
-          <ul className="list-disc pl-6 space-y-2">
-            <li>Use mask blur/dilation for seamless blends.</li>
-            <li>Unload models between stages to save VRAM.</li>
-            <li>Document and save your JSON workflows for reuse.</li>
-            <li>Stop early if it looks great—avoid over-processing.</li>
-          </ul>
-        </div>
-      </CardContent>
-    </Card>
-  );
-
-  return (
-    <TooltipProvider>
-      <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-100">
-        {/* Header */}
-        <header className="sticky top-0 z-40 backdrop-blur supports-[backdrop-filter]:bg-slate-950/50 border-b border-slate-800">
-          <div className="mx-auto max-w-7xl px-4 py-3 flex items-center gap-3">
-            <BookOpen className="h-6 w-6 text-emerald-400" />
-            <h1 className="text-lg md:text-2xl font-semibold tracking-tight">ComfyUI Refinement Lab</h1>
-            <Badge variant="outline" className="ml-1">SDXL & FLUX</Badge>
-            <div className="ml-auto flex items-center gap-2">
-              <div className="hidden md:flex items-center gap-2 px-2 py-1 rounded-xl bg-slate-900 border border-slate-800">
-                <SearchIcon className="h-4 w-4 text-slate-400" />
-                <Input placeholder="Search sections…" value={query} onChange={(e)=>setQuery(e.target.value)} className="border-0 bg-transparent focus-visible:ring-0 w-56" />
-              </div>
-              <div className="hidden md:flex items-center gap-2 px-2 py-1 rounded-xl bg-slate-900 border border-slate-800">
-                <span className="text-xs text-slate-400 mr-1">Model</span>
-                <Tabs value={model} onValueChange={setModel}>
-                  <TabsList className="grid grid-cols-2">
-                    <TabsTrigger value="SDXL">SDXL</TabsTrigger>
-                    <TabsTrigger value="FLUX">FLUX</TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </div>
-              <Button size="sm" variant="secondary" onClick={()=>setShowTOC((s)=>!s)} className="gap-2">
-                <ChevronRight className={cx("h-4 w-4 transition-transform", showTOC ? "rotate-90" : "")}/>
-                TOC
-              </Button>
-            </div>
-          </div>
-        </header>
-
-        {/* Layout */}
-        <div className="mx-auto max-w-7xl px-4 md:px-6 py-6 grid grid-cols-1 md:grid-cols-[260px_1fr] gap-6">
-          {/* Sidebar TOC */}
-          <aside className={cx("md:sticky md:top-20 self-start", showTOC ? "block" : "hidden md:block") }>
-            <Card className="bg-slate-900/50 border-slate-800">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2"><LinkIcon className="h-4 w-4"/>On this page</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-[60vh] pr-4">
-                  <div className="space-y-1">
-                    {filteredSections.map((s)=> (
-                      <Button key={s.id} variant="ghost" className="w-full justify-start" onClick={()=>scrollTo(s.id)}>
-                        <ChevronRight className="h-4 w-4 mr-2"/>{s.title}
-                      </Button>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </CardContent>
-            </Card>
-            <div className="h-6"/>
-            {/* Prompt Wizard */}
-            <Card className="bg-slate-900/50 border-slate-800">
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2"><Wand2 className="h-4 w-4"/>Prompt Wizard</CardTitle>
-                <CardDescription>Craft positive/negative prompts and recommended settings.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="space-y-2">
-                  <Label>Subject</Label>
-                  <Input value={prompt.subject} onChange={(e)=>setPrompt(p=>({...p, subject: e.target.value}))} placeholder="e.g., A peaceful desert at sunrise after rainfall…" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Scene / Composition</Label>
-                  <Input value={prompt.scene} onChange={(e)=>setPrompt(p=>({...p, scene: e.target.value}))} placeholder="framing, environment, composition" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Style / Aesthetic</Label>
-                  <Input value={prompt.style} onChange={(e)=>setPrompt(p=>({...p, style: e.target.value}))} placeholder="photorealistic, ultradetailed, cinematic…" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Camera / Lens</Label>
-                  <Input value={prompt.camera} onChange={(e)=>setPrompt(p=>({...p, camera: e.target.value}))} placeholder="85mm, f/1.8, macro, isometric…" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Lighting</Label>
-                  <Input value={prompt.lighting} onChange={(e)=>setPrompt(p=>({...p, lighting: e.target.value}))} placeholder="golden hour, rim light, volumetric…" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Quality Tags</Label>
-                  <Input value={prompt.quality} onChange={(e)=>setPrompt(p=>({...p, quality: e.target.value}))} placeholder="masterpiece, HDR, filmic…" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Extras</Label>
-                  <Input value={prompt.extras} onChange={(e)=>setPrompt(p=>({...p, extras: e.target.value}))} placeholder="optional add-ons" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Negative Prompt</Label>
-                  <Textarea rows={3} value={negative} onChange={(e)=>setNegative(e.target.value)} />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Label>Goal</Label>
-                    <Tabs value={goal} onValueChange={setGoal}>
-                      <TabsList>
-                        <TabsTrigger value="portrait">Portrait</TabsTrigger>
-                        <TabsTrigger value="widescreen">Widescreen</TabsTrigger>
-                        <TabsTrigger value="square">Square</TabsTrigger>
-                      </TabsList>
-                    </Tabs>
-                  </div>
-                  {model === "FLUX" && (
-                    <div className="flex items-center gap-3">
-                      <Label className="text-xs">Guidance</Label>
-                      <div className="w-28"><Slider defaultValue={[guidance]} min={2.5} max={8} step={0.5} onValueChange={(v)=>setGuidance(v[0])} /></div>
-                      <Badge variant="outline">{guidance.toFixed(1)}</Badge>
-                    </div>
-                  )}
-                </div>
-                <Separator className="my-2" />
-                <div className="space-y-2">
-                  <Label>Positive Prompt</Label>
-                  <Textarea readOnly rows={4} value={builtPrompt} />
-                  <CopyButton text={builtPrompt} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Recommended Settings</Label>
-                  <div className="rounded-xl border border-slate-800 p-3 text-xs space-y-1 bg-slate-950/50">
-                    <div>Model: <b>{model}</b></div>
-                    <div>Sampler: <b>{settingHint.sampler}</b></div>
-                    <div>Steps: <b>{settingHint.steps}</b> {model === "FLUX" ? `(CFG=1, guidance ~${settingHint.guidance || 4.5})` : `(CFG ≈ ${settingHint.cfg})`}</div>
-                    <div>Canvas: <b>{settingHint.size}</b></div>
-                    <div>Refine: <b>{settingHint.refine}</b></div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </aside>
-
-          {/* Main content */}
-          <main ref={contentRef} className="space-y-6">
-            <SectionBase />
-            <SectionRefine />
-            <SectionTargeted />
-            <SectionWorkflows />
-            <SectionBest />
-            <footer className="py-6 text-center text-xs text-slate-400">Built for ComfyUI creators. Tailwind + shadcn/ui • Interactive guide • On-page AI assistant</footer>
-          </main>
-        </div>
-
-        {/* Floating Assistant */}
-        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
-          {openAssistant && (
-            <Card className="w-[min(92vw,420px)] shadow-2xl border-emerald-600/30">
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-base"><Bot className="h-5 w-5 text-emerald-400"/> Comfy Assistant</CardTitle>
-                <CardDescription>Generate prompts • Recommend samplers • Plan refinements</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-64 overflow-y-auto rounded-lg border border-slate-800 p-3 bg-slate-950/50 space-y-3">
-                  {chat.map((m, i) => (
-                    <div key={i} className={cx("text-sm", m.role === "assistant" ? "text-slate-100" : "text-slate-300") }>
-                      <div className="text-xs uppercase tracking-wide mb-1 text-slate-400">{m.role}</div>
-                      <pre className="whitespace-pre-wrap leading-6">{m.text}</pre>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-3 flex gap-2">
-                  <Input placeholder="Ask for a prompt, sampler, or step plan…" value={msg} onChange={(e)=>setMsg(e.target.value)} onKeyDown={(e)=> e.key === 'Enter' && handleSend()} />
-                  <Button onClick={handleSend} className="gap-2"><Send className="h-4 w-4"/>Send</Button>
-                </div>
-                <div className="mt-2 text-[11px] text-slate-400">Tip: try “generate prompt for cyberpunk alley portrait”, “sampler for SDXL face refine”, or “node graph for FLUX”.</div>
-              </CardContent>
-            </Card>
-          )}
-          <Button size="lg" className="rounded-full h-12 w-12 p-0 shadow-lg bg-emerald-600 hover:bg-emerald-500" onClick={()=>setOpenAssistant(s=>!s)}>
-            <Bot className="h-5 w-5"/>
-          </Button>
-        </div>
-      </div>
-    </TooltipProvider>
-  );
-}
 
 // =========================================================
 // Small Flow Diagram component
 // =========================================================
 function FlowDiagram({ nodes }) {
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      {nodes.map((n, i) => (
-        <div key={i} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm">
-          <span>{n}</span>
-          {i < nodes.length - 1 && <ChevronRight className="h-4 w-4 text-slate-500"/>}
-        </div>
-      ))}
-    </div>
-  );
+return (
+<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+{nodes.map((n, i) => (
+<div key={i} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm">
+<span>{n}</span>
+{i < nodes.length - 1 && <ChevronRight className="h-4 w-4 text-slate-500"/>}
+</div>
+))}
+</div>
+);
 }
