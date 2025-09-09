@@ -215,7 +215,7 @@
                         <div class="flex items-center justify-around space-x-4">
                             <div class="node" id="sdxl-node-1">
                                 <p class="font-semibold">Load Checkpoint</p>
-                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg mt-2">
+                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg">
                                     <p><strong>Model:</strong> SDXL Base 1.0</p>
                                     <p><strong>Purpose:</strong> Sets up the foundational model for the entire workflow.</p>
                                 </div>
@@ -223,7 +223,7 @@
                             <div class="text-gray-500 font-bold text-2xl">→</div>
                              <div class="node" id="sdxl-node-2">
                                 <p class="font-semibold">Prompt Text</p>
-                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg mt-2">
+                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg">
                                     <p><strong>Positive:</strong> Your detailed scene description.</p>
                                     <p><strong>Negative:</strong> Things to avoid (e.g., "blurry, ugly, deformed").</p>
                                     <p><strong>Tip:</strong> Connect this to both KSamplers.</p>
@@ -232,7 +232,7 @@
                             <div class="text-gray-500 font-bold text-2xl">→</div>
                             <div class="node" id="sdxl-node-3">
                                 <p class="font-semibold">Base KSampler</p>
-                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg mt-2">
+                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg">
                                     <p><strong>Steps:</strong> 20-25</p>
                                     <p><strong>CFG:</strong> 7-8</p>
                                     <p><strong>Sampler:</strong> `dpmpp_2m_sde`</p>
@@ -249,7 +249,7 @@
                         <div class="flex items-center justify-around space-x-4">
                              <div class="node" id="sdxl-node-4">
                                 <p class="font-semibold">Load Refiner</p>
-                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg mt-2">
+                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg">
                                     <p><strong>Model:</strong> SDXL Refiner 1.0</p>
                                     <p><strong>Purpose:</strong> Prepares the specialized detail-adding model.</p>
                                 </div>
@@ -257,7 +257,7 @@
                             <div class="text-gray-500 font-bold text-2xl">→</div>
                              <div class="node" id="sdxl-node-5">
                                 <p class="font-semibold">Refiner KSampler</p>
-                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg mt-2">
+                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg">
                                     <p><strong>Input:</strong> Latent from Base KSampler</p>
                                     <p><strong>Steps:</strong> 25 (same as Base)</p>
                                     <p><strong>Start At Step:</strong> 20 (where Base left off)</p>
@@ -267,7 +267,7 @@
                             <div class="text-gray-500 font-bold text-2xl">→</div>
                             <div class="node" id="sdxl-node-6">
                                 <p class="font-semibold">Upscale (2x)</p>
-                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg mt-2">
+                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg">
                                     <p><strong>Node:</strong> Upscale Image (using model)</p>
                                     <p><strong>Upscale Model:</strong> 4x-UltraSharp</p>
                                     <p><strong>Input:</strong> VAE Decoded image from Refiner</p>
@@ -290,7 +290,7 @@
                         <div class="flex items-center justify-around space-x-4">
                             <div class="node" id="flux-node-1">
                                 <p class="font-semibold">Load Checkpoint</p>
-                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg mt-2">
+                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg">
                                     <p><strong>Model:</strong> Flux.1-schnell</p>
                                     <p><strong>Purpose:</strong> Select the main FLUX model.</p>
                                 </div>
@@ -298,7 +298,7 @@
                             <div class="text-gray-500 font-bold text-2xl">→</div>
                              <div class="node" id="flux-node-2">
                                 <p class="font-semibold">FLUX KSampler</p>
-                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg mt-2">
+                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg">
                                     <p><strong>Steps:</strong> 12-18 (FLUX is efficient!)</p>
                                     <p><strong>CFG:</strong> 4-5</p>
                                     <p><strong>Sampler:</strong> `dpmpp_2m_sde`</p>
@@ -309,7 +309,7 @@
                             <div class="text-gray-500 font-bold text-2xl">→</div>
                             <div class="node" id="flux-node-3">
                                 <p class="font-semibold">VAE Decode</p>
-                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg mt-2">
+                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg">
                                     <p><strong>Purpose:</strong> Converts the latent image from the sampler into a viewable pixel image.</p>
                                     <p><strong>Result:</strong> Your final, high-quality generated image.</p>
                                 </div>
