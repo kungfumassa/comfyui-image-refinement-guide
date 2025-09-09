@@ -1,563 +1,576 @@
-<!DOCTYPE html>
-<html lang="en" class="scroll-smooth">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interactive Guide to ComfyUI Image Refinement</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Chosen Palette: Warm Neutrals & Slate Blue -->
-    <!-- Application Structure Plan: The application uses a fixed sidebar navigation for non-linear, task-oriented access to the guide's content. This structure is superior to a linear document for a technical guide, as it allows users to quickly jump between core concepts, specific workflows (SDXL, Flux), and best practices without excessive scrolling. The main content area uses interactive accordions and clickable "node" diagrams to present information in a digestible, layered way, encouraging exploration rather than passive reading. Gemini API features are integrated to provide dynamic prompt help, workflow explanations, and troubleshooting advice. -->
-    <!-- Visualization & Content Choices: 1. Node Workflows: Info -> ComfyUI node graphs. Goal -> Organize/Inform. Method -> Interactive diagrams built with HTML divs and styled with Tailwind CSS to represent nodes and connections. Interaction -> Clicking a node reveals detailed parameter settings. Justification -> This provides a clear, visual representation without using forbidden SVG/Mermaid, and the interactivity prevents information overload. 2. Best Practices: Info -> Sampler/CFG settings. Goal -> Compare/Inform. Method -> Styled cards within a CSS grid. Interaction -> Hover effects to show brief info. Justification -> More engaging and scannable than a simple list or table. 3. Guide Steps: Info -> Step-by-step instructions. Goal -> Inform. Method -> Accordion-style collapsible sections. Interaction -> Clicking a step title expands its content. Justification -> Organizes sequential information cleanly, saving vertical space. -->
-    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-        }
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-        .node {
-            border: 1px solid #94a3b8;
-            background-color: #f1f5f9;
-            color: #1e293b;
-            border-radius: 8px;
-            padding: 12px;
-            text-align: center;
-            position: relative;
-            transition: all 0.3s ease;
-            min-width: 150px;
-        }
-        .node:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-        .node-details {
-            margin-top: 12px;
-        }
-        .connector {
-            position: absolute;
-            border-color: #64748b;
-            z-index: -1;
-        }
-        .accordion-content {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.5s ease-out;
-        }
-        .sidebar-link.active {
-            background-color: #eab308;
-            color: #1e293b;
-            font-weight: 600;
-        }
-        .gemini-feature-card {
-            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-            border: 1px solid #7dd3fc;
-        }
-        .gemini-button {
-             background: linear-gradient(to right, #6366f1, #8b5cf6);
-             color: white;
-        }
-        .gemini-button:hover {
-            background: linear-gradient(to right, #4f46e5, #7c3aed);
-        }
-        .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #8b5cf6;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 50;
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.3s, visibility 0.3s;
-        }
-        .modal-overlay.visible {
-            opacity: 1;
-            visibility: visible;
-        }
-        .modal-content {
-            background: white;
-            padding: 2rem;
-            border-radius: 0.5rem;
-            max-width: 500px;
-            width: 90%;
-            transform: scale(0.95);
-            transition: transform 0.3s;
-        }
-        .modal-overlay.visible .modal-content {
-            transform: scale(1);
-        }
-    </style>
-</head>
-<body class="bg-[#F8F7F4] text-[#334155]">
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Bot, Send, Wand2, Copy, Check, ChevronRight, Search as SearchIcon, Settings, HelpCircle, BookOpen, Sparkles, ChevronDown, Maximize2, Link as LinkIcon, Network, ZoomIn, Focus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Slider } from "@/components/ui/slider";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
-    <div class="flex min-h-screen">
-        <aside class="w-64 bg-[#435d7d] text-white p-6 fixed h-full hidden lg:block">
-            <h2 class="text-2xl font-bold mb-8">Refinement Guide</h2>
-            <nav id="desktop-nav" class="space-y-2">
-                <a href="#introduction" class="sidebar-link block py-2.5 px-4 rounded transition duration-200 hover:bg-yellow-500 hover:text-black">Introduction</a>
-                <a href="#core-concepts" class="sidebar-link block py-2.5 px-4 rounded transition duration-200 hover:bg-yellow-500 hover:text-black">Core Concepts</a>
-                <a href="#gemini-prompt-studio" class="sidebar-link block py-2.5 px-4 rounded transition duration-200 hover:bg-yellow-500 hover:text-black">✨ Prompt Studio</a>
-                <a href="#sdxl-workflow" class="sidebar-link block py-2.5 px-4 rounded transition duration-200 hover:bg-yellow-500 hover:text-black">SDXL Workflow</a>
-                <a href="#flux-workflow" class="sidebar-link block py-2.5 px-4 rounded transition duration-200 hover:bg-yellow-500 hover:text-black">FLUX Workflow</a>
-                <a href="#advanced" class="sidebar-link block py-2.5 px-4 rounded transition duration-200 hover:bg-yellow-500 hover:text-black">Advanced Techniques</a>
-                <a href="#best-practices" class="sidebar-link block py-2.5 px-4 rounded transition duration-200 hover:bg-yellow-500 hover:text-black">Best Practices</a>
-            </nav>
-        </aside>
+// =========================================================
+// Utilities
+// =========================================================
+function cx(...classes) {
+  return classes.filter(Boolean).join(" ");
+}
 
-        <main class="lg:ml-64 flex-1 p-4 md:p-8 lg:p-12">
-            <div class="max-w-4xl mx-auto">
+function CopyButton({ text, size = "sm", className }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <Button
+      size={size}
+      variant="secondary"
+      className={cx("gap-2", className)}
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(text);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1200);
+        } catch {}
+      }}
+    >
+      {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+      {copied ? "Copied" : "Copy"}
+    </Button>
+  );
+}
 
-                <div class="lg:hidden mb-6">
-                    <select id="mobile-nav" class="w-full p-3 bg-white border border-gray-300 rounded-md shadow-sm">
-                        <option value="#introduction">Introduction</option>
-                        <option value="#core-concepts">Core Concepts</option>
-                        <option value="#gemini-prompt-studio">✨ Prompt Studio</option>
-                        <option value="#sdxl-workflow">SDXL Workflow</option>
-                        <option value="#flux-workflow">FLUX Workflow</option>
-                        <option value="#advanced">Advanced Techniques</option>
-                        <option value="#best-practices">Best Practices</option>
-                    </select>
-                </div>
-            
-                <section id="introduction" class="mb-16 scroll-mt-20">
-                    <h1 class="text-4xl font-bold text-[#435d7d] mb-4">Mastering Image Refinement in ComfyUI</h1>
-                    <p class="text-lg text-gray-600 mb-4">Welcome to your interactive guide for creating professional-quality images with SDXL and FLUX models in ComfyUI. This guide breaks down the process into clear, manageable steps, from generating a strong base image to applying targeted, high-fidelity enhancements. We will explore complete workflows, node by node, and discuss the best practices that balance quality and efficiency.</p>
-                    <p class="text-gray-600">This guide is now enhanced with ✨ <span class="font-bold">Gemini AI</span> to help you write better prompts, understand complex workflows, and troubleshoot common issues. Look for the sparkle to find AI-powered features!</p>
-                </section>
+function Anchor({ id }) {
+  return <div id={id} className="absolute -top-28" />;
+}
 
-                <section id="core-concepts" class="mb-16 scroll-mt-20">
-                    <h2 class="text-3xl font-bold text-[#435d7d] mb-6">Core Concepts</h2>
-                    <p class="text-gray-600 mb-6">Before diving into the workflows, it's essential to understand the key components we'll be using. This section provides a quick overview of the fundamental nodes and parameters that form the backbone of any image generation and refinement pipeline. Familiarizing yourself with these concepts will make the workflow diagrams much easier to understand and adapt.</p>
-                    <div class="space-y-4">
-                        <div class="accordion-item bg-white p-4 rounded-lg shadow">
-                            <button class="accordion-header w-full text-left flex justify-between items-center text-lg font-semibold text-[#435d7d]">
-                                Checkpoints & LoRAs
-                                <span class="transform transition-transform duration-300">▼</span>
-                            </button>
-                            <div class="accordion-content">
-                                <p class="mt-2 text-gray-600"><strong>Checkpoints:</strong> These are the main models (e.g., SDXL Base, FLUX). They contain the core knowledge for generating images. <br><strong>LoRAs:</strong> Lighter-weight files that apply specific styles, concepts, or character likenesses on top of a checkpoint model without altering it directly.</p>
-                            </div>
-                        </div>
-                        <div class="accordion-item bg-white p-4 rounded-lg shadow">
-                            <button class="accordion-header w-full text-left flex justify-between items-center text-lg font-semibold text-[#435d7d]">
-                                KSampler (Advanced)
-                                <span class="transform transition-transform duration-300">▼</span>
-                            </button>
-                            <div class="accordion-content">
-                                <p class="mt-2 text-gray-600">The engine of image generation. It takes a model, prompts, and a latent image (noise) and iteratively "denoises" it into a final image. Key settings include:
-                                    <br><strong>Sampler/Scheduler:</strong> The algorithm used for denoising (e.g., `euler`, `dpmpp_2m_sde`).
-                                    <br><strong>Steps:</strong> How many iterations the sampler performs. More steps can add detail but have diminishing returns.
-                                    <br><strong>CFG Scale:</strong> How strongly the sampler should adhere to your prompt. Higher values are more strict but can lead to artifacts.</p>
-                            </div>
-                        </div>
-                        <div class="accordion-item bg-white p-4 rounded-lg shadow">
-                            <button class="accordion-header w-full text-left flex justify-between items-center text-lg font-semibold text-[#435d7d]">
-                                Upscalers & Refiners
-                                <span class="transform transition-transform duration-300">▼</span>
-                            </button>
-                            <div class="accordion-content">
-                                <p class="mt-2 text-gray-600"><strong>Upscalers:</strong> Models that increase image resolution (e.g., 4x-UltraSharp). They can add detail but sometimes introduce artifacts. They are used in an "Image-to-Image" process.
-                                <br><strong>Refiner Models:</strong> Specific to SDXL, the refiner is a model trained to add high-frequency details to an image generated by the SDXL base model. It is typically used for the last few steps of the generation process.</p>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-                
-                <section id="gemini-prompt-studio" class="mb-16 scroll-mt-20">
-                    <h2 class="text-3xl font-bold text-[#435d7d] mb-6">✨ Gemini Prompt Studio</h2>
-                    <div class="p-6 rounded-lg shadow gemini-feature-card">
-                        <p class="text-gray-600 mb-4">A great image starts with a great prompt. Describe a simple idea below, and Gemini will help you expand it into a rich, detailed prompt perfect for generating stunning visuals.</p>
-                        <div class="flex flex-col space-y-4">
-                            <textarea id="prompt-input" class="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-indigo-500" rows="3" placeholder="e.g., a castle in the clouds"></textarea>
-                            <button id="enhance-prompt-btn" class="gemini-button font-bold py-2 px-4 rounded-md flex items-center justify-center">
-                                ✨ Enhance Prompt
-                            </button>
-                            <div id="prompt-output-container" class="bg-white p-4 rounded-md shadow-inner" style="display: none;">
-                                <h4 class="font-semibold text-lg mb-2">Enhanced Prompt:</h4>
-                                <div id="prompt-output" class="text-gray-700 whitespace-pre-wrap"></div>
-                            </div>
-                            <div id="prompt-loader" class="mx-auto" style="display: none;"><div class="loader"></div></div>
-                        </div>
-                    </div>
-                </section>
+// =========================================================
+// Content Data (condensed from the full guide)
+// =========================================================
+const SECTIONS = [
+  { id: "base", title: "Base Generation" },
+  { id: "refine", title: "Refinement Process" },
+  { id: "targeted", title: "Targeted Enhancements" },
+  { id: "workflows", title: "Node Workflow Examples" },
+  { id: "best", title: "Best Practices" },
+];
 
-                <section id="sdxl-workflow" class="mb-16 scroll-mt-20">
-                    <div class="flex justify-between items-start mb-4">
-                         <h2 class="text-3xl font-bold text-[#435d7d]">SDXL: Base to Refined Workflow</h2>
-                         <button class="gemini-button text-sm font-semibold py-2 px-3 rounded-md flex items-center" data-workflow="sdxl">✨ Explain</button>
-                    </div>
-                    <p class="text-gray-600 mb-8">This workflow is a robust method for creating high-quality, detailed images with SDXL. We start by generating a solid composition with the base model, then pass it to a refiner and an upscaler to enhance resolution and add fine details.</p>
-                    
-                    <h3 class="text-xl font-semibold mb-4 text-[#435d7d]">Part 1: Base Generation (1024x1024)</h3>
-                    <div class="p-6 bg-gray-50 rounded-lg shadow-inner relative">
-                        <div class="flex items-start justify-around space-x-4">
-                            <div class="node">
-                                <p class="font-semibold">Load Checkpoint</p>
-                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg">
-                                    <p><strong>Model:</strong> SDXL Base 1.0</p>
-                                    <p><strong>Purpose:</strong> Sets up the foundational model for the entire workflow.</p>
-                                </div>
-                            </div>
-                            <div class="text-gray-500 font-bold text-2xl pt-8">→</div>
-                             <div class="node">
-                                <p class="font-semibold">Prompt Text</p>
-                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg">
-                                    <p><strong>Positive:</strong> Your detailed scene description.</p>
-                                    <p><strong>Negative:</strong> Things to avoid (e.g., "blurry, ugly, deformed").</p>
-                                    <p><strong>Tip:</strong> Connect this to both KSamplers.</p>
-                                </div>
-                            </div>
-                            <div class="text-gray-500 font-bold text-2xl pt-8">→</div>
-                            <div class="node">
-                                <p class="font-semibold">Base KSampler</p>
-                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg">
-                                    <p><strong>Steps:</strong> 20-25</p>
-                                    <p><strong>CFG:</strong> 7-8</p>
-                                    <p><strong>Sampler:</strong> `dpmpp_2m_sde`</p>
-                                    <p><strong>Scheduler:</strong> `karras`</p>
-                                    <p><strong>Denoise:</strong> 1.0 (for full generation)</p>
-                                    <p><strong>End At Step:</strong> 20 (if total steps is 25)</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+const DEFAULT_NEGATIVE = [
+  "lowres, jpeg artifacts, blurry, oversaturated, deformed, extra fingers, duplicate, text, watermark, logo, signature"
+].join(", ");
 
-                    <h3 class="text-xl font-semibold mt-8 mb-4 text-[#435d7d]">Part 2: Refinement & Upscale</h3>
-                     <div class="p-6 bg-gray-50 rounded-lg shadow-inner relative">
-                        <div class="flex items-start justify-around space-x-4">
-                             <div class="node">
-                                <p class="font-semibold">Load Refiner</p>
-                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg">
-                                    <p><strong>Model:</strong> SDXL Refiner 1.0</p>
-                                    <p><strong>Purpose:</strong> Prepares the specialized detail-adding model.</p>
-                                </div>
-                            </div>
-                            <div class="text-gray-500 font-bold text-2xl pt-8">→</div>
-                             <div class="node">
-                                <p class="font-semibold">Refiner KSampler</p>
-                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg">
-                                    <p><strong>Input:</strong> Latent from Base KSampler</p>
-                                    <p><strong>Steps:</strong> 25 (same as Base)</p>
-                                    <p><strong>Start At Step:</strong> 20 (where Base left off)</p>
-                                    <p><strong>Sampler:</strong> Same as Base</p>
-                                </div>
-                            </div>
-                            <div class="text-gray-500 font-bold text-2xl pt-8">→</div>
-                            <div class="node">
-                                <p class="font-semibold">Upscale (2x)</p>
-                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg">
-                                    <p><strong>Node:</strong> Upscale Image (using model)</p>
-                                    <p><strong>Upscale Model:</strong> 4x-UltraSharp</p>
-                                    <p><strong>Input:</strong> VAE Decoded image from Refiner</p>
-                                    <p><strong>Output:</strong> High-res image (e.g., 2048x2048)</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-                
-                <section id="flux-workflow" class="mb-16 scroll-mt-20">
-                     <div class="flex justify-between items-start mb-4">
-                        <h2 class="text-3xl font-bold text-[#435d7d]">FLUX: Fast & High-Detail Workflow</h2>
-                        <button class="gemini-button text-sm font-semibold py-2 px-3 rounded-md flex items-center" data-workflow="flux">✨ Explain</button>
-                    </div>
-                    <p class="text-gray-600 mb-8">The FLUX model is designed for incredible speed and native high-resolution detail, reducing the need for complex refiner models. This workflow focuses on a direct generation followed by a simple upscale for a fast yet high-quality result.</p>
+const SAMPLER_RECS = {
+  SDXL: {
+    base: "DPM++ 2M Karras (20 steps), CFG 6.5–8.0",
+    refine: "Refiner pass 5–10 steps, denoise 0.25–0.4",
+    hiRes: "Img2Img 0.25–0.45 at higher res"
+  },
+  FLUX: {
+    base: "Euler a or DPM++ 2M Karras (20 steps), guidance 3.5–5.5 (CFG=1)",
+    refine: "Img2Img 0.2–0.35 at higher res",
+    hiRes: "Progressive upscale 1.5–2× + light refine"
+  }
+};
 
-                    <h3 class="text-xl font-semibold mb-4 text-[#435d7d]">Direct High-Resolution Generation</h3>
-                    <div class="p-6 bg-gray-50 rounded-lg shadow-inner relative">
-                        <div class="flex items-start justify-around space-x-4">
-                            <div class="node">
-                                <p class="font-semibold">Load Checkpoint</p>
-                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg">
-                                    <p><strong>Model:</strong> Flux.1-schnell</p>
-                                    <p><strong>Purpose:</strong> Select the main FLUX model.</p>
-                                </div>
-                            </div>
-                            <div class="text-gray-500 font-bold text-2xl pt-8">→</div>
-                             <div class="node">
-                                <p class="font-semibold">FLUX KSampler</p>
-                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg">
-                                    <p><strong>Steps:</strong> 12-18 (FLUX is efficient!)</p>
-                                    <p><strong>CFG:</strong> 4-5</p>
-                                    <p><strong>Sampler:</strong> `dpmpp_2m_sde`</p>
-                                    <p><strong>Scheduler:</strong> `sgm_uniform`</p>
-                                    <p><strong>Resolution:</strong> 1024x1024 or 1536x1536</p>
-                                </div>
-                            </div>
-                            <div class="text-gray-500 font-bold text-2xl pt-8">→</div>
-                            <div class="node">
-                                <p class="font-semibold">VAE Decode</p>
-                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg">
-                                    <p><strong>Purpose:</strong> Converts the latent image from the sampler into a viewable pixel image.</p>
-                                    <p><strong>Result:</strong> Your final, high-quality generated image.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
+const UPSCALERS = [
+  { name: "R-ESRGAN 4×", tip: "Good general-purpose detail." },
+  { name: "NMKD Superscale 2×/4×", tip: "Clean enlargement with decent texture." },
+  { name: "Latent upscalers", tip: "Use with a small refine pass for best results." },
+];
 
-                <section id="advanced" class="mb-16 scroll-mt-20">
-                    <h2 class="text-3xl font-bold text-[#435d7d] mb-6">Advanced: Targeted Enhancements</h2>
-                    <p class="text-gray-600 mb-6">Once you have a high-resolution image, you might notice specific areas that need improvement, such as faces or fine textures. Targeted enhancement, also known as inpainting, allows you to re-generate only a selected part of the image with a more specific prompt or different settings. This is key for achieving professional, polished results.</p>
-                    <div class="bg-white p-6 rounded-lg shadow">
-                        <h3 class="text-xl font-semibold text-[#435d7d] mb-3">Facial Refinement Workflow (Inpainting)</h3>
-                        <ol class="list-decimal list-inside space-y-2 text-gray-600">
-                            <li><strong>Generate Base Image:</strong> Follow the SDXL or FLUX workflow to get your upscaled image.</li>
-                            <li><strong>Mask the Area:</strong> In ComfyUI, right-click the final image and choose "Open in MaskEditor". Paint over the area you want to fix (e.g., the face).</li>
-                            <li><strong>Set up an Inpainting KSampler:</strong> Add a new KSampler. Connect your original model and prompts to it. Crucially, connect the masked image to the `latent_image` input of this new sampler.</li>
-                            <li><strong>Refine the Prompt:</strong> Modify your positive prompt to be highly specific to the masked area. For a face, add terms like "detailed beautiful face, sharp eyes, perfect features".</li>
-                            <li><strong>Set a Low Denoise:</strong> This is the most important step. Set the `denoise` value on the inpainting KSampler to a low value, typically between <strong>0.35 and 0.6</strong>. A low value preserves the overall structure of the face while allowing the model to add details and correct errors based on your new prompt.</li>
-                            <li><strong>Generate:</strong> Run the workflow. Only the masked area will be re-generated, blending seamlessly with the rest of the image.</li>
-                        </ol>
-                    </div>
-                </section>
+// Simple flow nodes text for copy
+const FLOW_SDXL = `SDXL Base → KSampler (20 steps, CFG ~7) → VAE Decode → SDXL Refiner Img2Img (5–10 steps, denoise 0.3) → VAE Decode → Upscale (2×) → Img2Img Refine (0.3) → Save`;
+const FLOW_FLUX = `FLUX Model + Dual Encoders → KSampler (20 steps, guidance 3.5–5.5, CFG=1) → VAE Decode → Upscale (2×) → Img2Img Refine (0.25–0.35) → Save`;
 
-                <section id="best-practices" class="scroll-mt-20">
-                    <h2 class="text-3xl font-bold text-[#435d7d] mb-6">Best Practices & Cheatsheet</h2>
-                    <p class="text-gray-600 mb-8">Achieving the perfect balance between image quality, speed, and prompt adherence is an art. This section provides a quick reference for making smart choices with your settings. These are general guidelines; always be prepared to experiment to find what works best for your specific image and style.</p>
-                    
-                    <div class="p-6 rounded-lg shadow gemini-feature-card mb-8">
-                        <h3 class="text-2xl font-bold text-[#435d7d] mb-4">✨ AI Troubleshooter</h3>
-                        <p class="text-gray-600 mb-4">Struggling with a result? Describe your problem, and Gemini will suggest solutions.</p>
-                        <div class="flex flex-col space-y-4">
-                            <input type="text" id="trouble-input" class="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-indigo-500" placeholder="e.g., Faces look weird, image is too dark">
-                            <button id="troubleshoot-btn" class="gemini-button font-bold py-2 px-4 rounded-md flex items-center justify-center">
-                                ✨ Get Suggestions
-                            </button>
-                            <div id="trouble-output-container" class="bg-white p-4 rounded-md shadow-inner" style="display: none;">
-                                <h4 class="font-semibold text-lg mb-2">Suggestions:</h4>
-                                <div id="trouble-output" class="text-gray-700 whitespace-pre-wrap"></div>
-                            </div>
-                            <div id="trouble-loader" class="mx-auto" style="display: none;"><div class="loader"></div></div>
-                        </div>
-                    </div>
+// =========================================================
+// Prompt Wizard logic
+// =========================================================
+function buildPrompt({ subject, scene, style, camera, lighting, quality, extras }) {
+  const parts = [subject, scene, style, camera, lighting, quality, extras].filter(Boolean);
+  const positive = parts.join(", ");
+  return positive.replace(/\s+,/g, ",").replace(/,,+/g, ",").trim();
+}
 
-                    <div class="grid md:grid-cols-2 gap-6">
-                        <div class="bg-white p-6 rounded-lg shadow">
-                            <h3 class="text-xl font-semibold text-[#435d7d] mb-3">Sampler Selection</h3>
-                            <ul class="list-disc list-inside space-y-2 text-gray-600">
-                                <li><strong>For Speed & Quality Balance:</strong> `dpmpp_2m_sde` with `karras` scheduler is a top-tier choice for most scenarios.</li>
-                                <li><strong>For Fast Previews:</strong> `euler_ancestral` (or `euler_a`) is very fast and great for testing prompts, though it can be less coherent.</li>
-                                <li><strong>For High Detail:</strong> `dpmpp_3m_sde_gpu` can sometimes produce slightly sharper results at the cost of speed.</li>
-                            </ul>
-                        </div>
-                        <div class="bg-white p-6 rounded-lg shadow">
-                            <h3 class="text-xl font-semibold text-[#435d7d] mb-3">CFG Scale Guidance</h3>
-                            <ul class="list-disc list-inside space-y-2 text-gray-600">
-                                <li><strong>CFG 3-6 (Creative):</strong> Gives the model more creative freedom. Good for abstract or highly stylized images where strict prompt adherence isn't critical. Used often with FLUX.</li>
-                                <li><strong>CFG 7-10 (Balanced):</strong> The standard range for SDXL. A strong balance between following the prompt and producing a coherent, high-quality image.</li>
-                                <li><strong>CFG 11+ (Strict):</strong> Forces the model to follow the prompt very closely. Use with caution, as it can lead to oversaturated, "burnt" images and artifacts.</li>
-                            </ul>
-                        </div>
-                        <div class="bg-white p-6 rounded-lg shadow md:col-span-2">
-                             <h3 class="text-xl font-semibold text-[#435d7d] mb-3">Iteration Strategy</h3>
-                             <p class="text-gray-600">Don't try to get the perfect image in one go.
-                                <br>1. <strong>Composition First:</strong> Use low step counts (15-20) to quickly generate many images and find one with a strong composition. Use a fixed seed to iterate on the prompt.
-                                <br>2. <strong>Detail Second:</strong> Once you have a good composition, increase the step count and resolution.
-                                <br>3. <strong>Refine Last:</strong> Use targeted inpainting as a final step to fix any minor imperfections. This saves immense amounts of time compared to re-rolling the entire image.
-                             </p>
-                        </div>
-                    </div>
-                </section>
+function suggestSettings(model, goal) {
+  if (model === "SDXL") {
+    return {
+      steps: 20,
+      cfg: 7,
+      sampler: "DPM++ 2M Karras",
+      size: goal === "portrait" ? "1024×1280" : goal === "widescreen" ? "1280×720" : "1024×1024",
+      refine: "SDXL Refiner 5–10 steps @ denoise 0.3",
+    };
+  }
+  return {
+    steps: 20,
+    cfg: 1,
+    guidance: 4.5,
+    sampler: "Euler a",
+    size: goal === "portrait" ? "1024×1280" : goal === "widescreen" ? "1280×720" : "1024×1024",
+    refine: "Upscale 2× + Img2Img denoise 0.25–0.35",
+  };
+}
 
-            </div>
-        </main>
-    </div>
+// =========================================================
+// Heuristic Assistant (local, no external APIs)
+// =========================================================
+function localAssistant(message, state) {
+  const lower = message.toLowerCase();
+  const model = state.model;
+  const bullets = [];
 
-    <div id="modal" class="modal-overlay">
-        <div class="modal-content">
-            <h3 id="modal-title" class="text-2xl font-bold text-[#435d7d] mb-4"></h3>
-            <div id="modal-body" class="text-gray-600"></div>
-            <div class="mt-6 text-right">
-                <button id="modal-close" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-md hover:bg-gray-300">Close</button>
-            </div>
+  if (/prompt/.test(lower)) {
+    const p = buildPrompt(state.prompt);
+    bullets.push(`Here’s a refined positive prompt: \n\n${p}`);
+    bullets.push(`Suggested negative: \n\n${state.negative || DEFAULT_NEGATIVE}`);
+  }
+  if (/sampler|steps|cfg|guidance/.test(lower)) {
+    const rec = SAMPLER_RECS[model];
+    bullets.push(`Sampler & guidance for ${model}:`);
+    bullets.push(`• Base: ${rec.base}`);
+    bullets.push(`• High-res refine: ${rec.hiRes}`);
+  }
+  if (/eyes|face|hands|skin|texture/.test(lower)) {
+    bullets.push("Targeted enhancement tips:");
+    bullets.push("• Make a soft mask (blur 8–16px) around the region.");
+    bullets.push("• Use Img2Img denoise 0.2–0.4 with a detail-focused sub-prompt (e.g., ‘sharp eyes, clean catchlights, natural skin pores’).");
+    bullets.push("• Work at cropped 1024×1024 or higher for local passes, then merge.");
+  }
+  if (/workflow|graph|nodes?/.test(lower)) {
+    bullets.push(model === "SDXL" ? `Node flow:\n${FLOW_SDXL}` : `Node flow:\n${FLOW_FLUX}`);
+  }
+  if (/upscale|resolution|hi[- ]?res/.test(lower)) {
+    bullets.push("Upscale strategy:");
+    bullets.push("• Prefer progressive 1.5–2× steps; refine lightly after each.");
+    bullets.push("• Try R-ESRGAN 4× or NMKD 2×/4×; follow with Img2Img 0.25–0.35.");
+  }
+  if (bullets.length === 0) {
+    bullets.push("I can help with: prompt crafting, sampler/CFG, SDXL refiner handoff, FLUX guidance, upscalers, and targeted inpaint.");
+    bullets.push("Ask ‘generate prompt for [subject] in [style]’ or ‘recommend sampler for [model] portrait’." );
+  }
+  return bullets.join("\n");
+}
+
+// =========================================================
+// Main Component
+// =========================================================
+export default function ComfyRefinementLab() {
+  const [model, setModel] = useState("SDXL");
+  const [query, setQuery] = useState("");
+  const [showTOC, setShowTOC] = useState(true);
+  const [openAssistant, setOpenAssistant] = useState(false);
+
+  const contentRef = useRef(null);
+
+  // Prompt wizard state
+  const [prompt, setPrompt] = useState({
+    subject: "A cinematic portrait of a woman in a mossy forest",
+    scene: "soft bokeh background, shallow depth of field",
+    style: "photorealistic, ultra-detailed, natural skin texture",
+    camera: "85mm lens, f/1.8",
+    lighting: "golden hour rim light, volumetric rays",
+    quality: "masterpiece, high dynamic range",
+    extras: "",
+  });
+  const [negative, setNegative] = useState(DEFAULT_NEGATIVE);
+  const [goal, setGoal] = useState("portrait");
+  const [guidance, setGuidance] = useState(4.5); // for FLUX display
+
+  const builtPrompt = useMemo(() => buildPrompt({ ...prompt }), [prompt]);
+  const settingHint = useMemo(() => suggestSettings(model, goal), [model, goal]);
+
+  // Assistant state
+  const [chat, setChat] = useState([
+    { role: "assistant", text: "Hi! I’m your on-page AI. Ask me to craft prompts, pick samplers/CFG, or plan a refinement pass." },
+  ]);
+  const [msg, setMsg] = useState("");
+
+  const handleSend = async () => {
+    if (!msg.trim()) return;
+    const userTurn = { role: "user", text: msg };
+    setChat((c) => [...c, userTurn]);
+    setMsg("");
+
+    // Local heuristic assistant
+    const reply = localAssistant(msg, { model, prompt, negative });
+    setChat((c) => [...c, { role: "assistant", text: reply }]);
+  };
+
+  const filteredSections = useMemo(() => {
+    if (!query.trim()) return SECTIONS;
+    const q = query.toLowerCase();
+    return SECTIONS.filter((s) => s.title.toLowerCase().includes(q));
+  }, [query]);
+
+  const scrollTo = (id) => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  // Content snippets per section (shortened for readability)
+  const SectionBase = () => (
+    <Card id="base" className="relative">
+      <Anchor id="base" />
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-2xl"><Wand2 className="h-6 w-6"/> Base Generation</CardTitle>
+        <CardDescription>
+          Load models/encoders, encode prompts, seed a latent, and sample a strong starting image. Toggle SDXL/FLUX to see tailored tips.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Tabs defaultValue={model} onValueChange={setModel}>
+          <TabsList className="grid grid-cols-2 w-full">
+            <TabsTrigger value="SDXL">SDXL</TabsTrigger>
+            <TabsTrigger value="FLUX">FLUX</TabsTrigger>
+          </TabsList>
+          <TabsContent value="SDXL" className="space-y-4">
+            <ul className="list-disc pl-6 space-y-2 text-sm leading-6">
+              <li>Load <b>sd_xl_base_1.0</b> (CheckpointLoaderSimple) and VAE.</li>
+              <li>Encode positive & negative with SDXL text encoders (dual conditioning or combined node).</li>
+              <li>Initialize <b>Empty Latent</b>: 1024×1024 (or ~1MP equivalent).</li>
+              <li>Sample with <b>DPM++ 2M Karras</b>, ~20 steps, <b>CFG 6.5–8.0</b>.</li>
+              <li>Decode to image; this is your base for refinement.</li>
+            </ul>
+            <div className="text-xs text-muted-foreground">Sampler recs: {SAMPLER_RECS.SDXL.base}</div>
+          </TabsContent>
+          <TabsContent value="FLUX" className="space-y-4">
+            <ul className="list-disc pl-6 space-y-2 text-sm leading-6">
+              <li>Load <b>flux1-krea-dev</b> (or FP8) + <b>DualCLIPLoader</b> (clip_l + t5xxl) + <b>ae.safetensors</b>.</li>
+              <li>Use <b>ClipTextEncodeFlux</b>: concise style in clip_l, descriptive scene in t5xxl.</li>
+              <li>Empty latent 1024×1024. Sample ~20 steps. Keep <b>CFG=1</b>, set <b>guidance 3.5–5.5</b> in the encoder.</li>
+              <li>Decode to image; proceed to upscale/refine.</li>
+            </ul>
+            <div className="text-xs text-muted-foreground">Sampler/guidance recs: {SAMPLER_RECS.FLUX.base}</div>
+          </TabsContent>
+        </Tabs>
+      </CardContent>
+    </Card>
+  );
+
+  const SectionRefine = () => (
+    <Card id="refine" className="relative">
+      <Anchor id="refine" />
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-2xl"><ZoomIn className="h-6 w-6"/> Refinement Process</CardTitle>
+        <CardDescription>Progressively increase resolution and detail using refiners, upscalers, and light Img2Img passes.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <Accordion type="multiple" className="w-full">
+          <AccordionItem value="sdxl-refiner">
+            <AccordionTrigger>
+              SDXL Refiner Pass (2nd Stage)
+            </AccordionTrigger>
+            <AccordionContent>
+              <ol className="list-decimal pl-6 space-y-2 text-sm leading-6">
+                <li>Load <b>sd_xl_refiner_1.0</b>.</li>
+                <li>Encode a concise <b>refiner prompt</b> (aesthetic-forward; no new objects).</li>
+                <li>Encode your base image to latent; Img2Img with <b>denoise 0.25–0.4</b>, 5–10 steps.</li>
+                <li>Decode and compare. Expect better micro-detail and clarity.</li>
+              </ol>
+            </AccordionContent>
+          </AccordionItem>
+          <AccordionItem value="upscale">
+            <AccordionTrigger>
+              Upscaling & High-Res Fix (Model-Agnostic)
+            </AccordionTrigger>
+            <AccordionContent>
+              <ul className="list-disc pl-6 space-y-2 text-sm leading-6">
+                <li>Upscale with <b>R-ESRGAN 2×/4×</b> or <b>NMKD Superscale</b>.</li>
+                <li>Run a light Img2Img refine at the new size (<b>denoise 0.25–0.35</b>) to add real detail.</li>
+                <li>Prefer <b>progressive</b> 1.5–2× steps over one giant jump.</li>
+              </ul>
+              <div className="flex flex-wrap gap-2 mt-3">
+                {UPSCALERS.map((u) => (
+                  <Badge key={u.name} variant="secondary">{u.name}</Badge>
+                ))}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+          <AccordionItem value="flux-hr">
+            <AccordionTrigger>
+              FLUX High-Res Refinement
+            </AccordionTrigger>
+            <AccordionContent>
+              <p className="text-sm leading-6">After 2× upscale, run FLUX Img2Img with the same prompt, <b>denoise 0.2–0.35</b>. This adds realism without changing composition.</p>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      </CardContent>
+    </Card>
+  );
+
+  const SectionTargeted = () => (
+    <Card id="targeted" className="relative">
+      <Anchor id="targeted" />
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-2xl"><Focus className="h-6 w-6"/> Targeted Enhancements</CardTitle>
+        <CardDescription>Refine faces, eyes, hands, and textures with masks and local passes.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4 text-sm leading-6">
+        <ul className="list-disc pl-6 space-y-2">
+          <li><b>Face detailer</b> workflow: detect → crop (≈1024) → local Img2Img (denoise 0.25–0.45, ‘sharp eyes, natural skin pores’) → merge with soft mask.</li>
+          <li><b>Eyes-only</b>: draw a soft mask around eyes; very low denoise (0.2–0.3) and a tight sub-prompt for catchlights/iris detail.</li>
+          <li><b>Texture regions</b>: mask clothing/background; run detail prompt; blend with mask blur 8–16px.</li>
+          <li>Maintain color consistency by using the same VAE or light color match if a pass shifts tones.</li>
+        </ul>
+      </CardContent>
+    </Card>
+  );
+
+  const SectionWorkflows = () => (
+    <Card id="workflows" className="relative">
+      <Anchor id="workflows" />
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-2xl"><Network className="h-6 w-6"/> Node Workflow Examples</CardTitle>
+        <CardDescription>Clickable flows for SDXL and FLUX. Copy the sequence as a build checklist.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="grid md:grid-cols-2 gap-4">
+          <Card className="border-dashed">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg">SDXL Base → Refiner → Upscale</CardTitle>
+              <CardDescription>20 steps base, 5–10 steps refiner, 2× upscale + light Img2Img.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <FlowDiagram
+                nodes={["SDXL Base", "KSampler", "Decode", "SDXL Refiner Img2Img", "Decode", "Upscale (2×)", "Img2Img Refine", "Save"]}
+              />
+              <CopyButton text={FLOW_SDXL} />
+            </CardContent>
+          </Card>
+          <Card className="border-dashed">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg">FLUX Base → Upscale → Img2Img</CardTitle>
+              <CardDescription>20 steps base, 2× upscale, denoise 0.25–0.35 refine.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <FlowDiagram
+                nodes={["FLUX + Dual Encoders", "KSampler (CFG=1)", "Decode", "Upscale (2×)", "Img2Img Refine", "Save"]}
+              />
+              <CopyButton text={FLOW_FLUX} />
+            </CardContent>
+          </Card>
         </div>
+      </CardContent>
+    </Card>
+  );
+
+  const SectionBest = () => (
+    <Card id="best" className="relative">
+      <Anchor id="best" />
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-2xl"><Sparkles className="h-6 w-6"/> Best Practices</CardTitle>
+        <CardDescription>Quality, speed, and control—without over-refining.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid md:grid-cols-2 gap-6 text-sm leading-6">
+          <ul className="list-disc pl-6 space-y-2">
+            <li><b>Moderate guidance</b>: SDXL CFG 6.5–8.0; FLUX guidance 3.5–5.5 (keep CFG=1).</li>
+            <li><b>Steps budget</b>: split across stages (e.g., 20 base + 10 refine) for efficiency.</li>
+            <li><b>Progressive upscaling</b> beats one giant jump.</li>
+            <li><b>Low denoise</b> on local passes to preserve identity.</li>
+          </ul>
+          <ul className="list-disc pl-6 space-y-2">
+            <li>Use mask blur/dilation for seamless blends.</li>
+            <li>Unload models between stages to save VRAM.</li>
+            <li>Document and save your JSON workflows for reuse.</li>
+            <li>Stop early if it looks great—avoid over-processing.</li>
+          </ul>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  return (
+    <TooltipProvider>
+      <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-100">
+        {/* Header */}
+        <header className="sticky top-0 z-40 backdrop-blur supports-[backdrop-filter]:bg-slate-950/50 border-b border-slate-800">
+          <div className="mx-auto max-w-7xl px-4 py-3 flex items-center gap-3">
+            <BookOpen className="h-6 w-6 text-emerald-400" />
+            <h1 className="text-lg md:text-2xl font-semibold tracking-tight">ComfyUI Refinement Lab</h1>
+            <Badge variant="outline" className="ml-1">SDXL & FLUX</Badge>
+            <div className="ml-auto flex items-center gap-2">
+              <div className="hidden md:flex items-center gap-2 px-2 py-1 rounded-xl bg-slate-900 border border-slate-800">
+                <SearchIcon className="h-4 w-4 text-slate-400" />
+                <Input placeholder="Search sections…" value={query} onChange={(e)=>setQuery(e.target.value)} className="border-0 bg-transparent focus-visible:ring-0 w-56" />
+              </div>
+              <div className="hidden md:flex items-center gap-2 px-2 py-1 rounded-xl bg-slate-900 border border-slate-800">
+                <span className="text-xs text-slate-400 mr-1">Model</span>
+                <Tabs value={model} onValueChange={setModel}>
+                  <TabsList className="grid grid-cols-2">
+                    <TabsTrigger value="SDXL">SDXL</TabsTrigger>
+                    <TabsTrigger value="FLUX">FLUX</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+              <Button size="sm" variant="secondary" onClick={()=>setShowTOC((s)=>!s)} className="gap-2">
+                <ChevronRight className={cx("h-4 w-4 transition-transform", showTOC ? "rotate-90" : "")}/>
+                TOC
+              </Button>
+            </div>
+          </div>
+        </header>
+
+        {/* Layout */}
+        <div className="mx-auto max-w-7xl px-4 md:px-6 py-6 grid grid-cols-1 md:grid-cols-[260px_1fr] gap-6">
+          {/* Sidebar TOC */}
+          <aside className={cx("md:sticky md:top-20 self-start", showTOC ? "block" : "hidden md:block") }>
+            <Card className="bg-slate-900/50 border-slate-800">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2"><LinkIcon className="h-4 w-4"/>On this page</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-[60vh] pr-4">
+                  <div className="space-y-1">
+                    {filteredSections.map((s)=> (
+                      <Button key={s.id} variant="ghost" className="w-full justify-start" onClick={()=>scrollTo(s.id)}>
+                        <ChevronRight className="h-4 w-4 mr-2"/>{s.title}
+                      </Button>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+            <div className="h-6"/>
+            {/* Prompt Wizard */}
+            <Card className="bg-slate-900/50 border-slate-800">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2"><Wand2 className="h-4 w-4"/>Prompt Wizard</CardTitle>
+                <CardDescription>Craft positive/negative prompts and recommended settings.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="space-y-2">
+                  <Label>Subject</Label>
+                  <Input value={prompt.subject} onChange={(e)=>setPrompt(p=>({...p, subject: e.target.value}))} placeholder="e.g., A peaceful desert at sunrise after rainfall…" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Scene / Composition</Label>
+                  <Input value={prompt.scene} onChange={(e)=>setPrompt(p=>({...p, scene: e.target.value}))} placeholder="framing, environment, composition" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Style / Aesthetic</Label>
+                  <Input value={prompt.style} onChange={(e)=>setPrompt(p=>({...p, style: e.target.value}))} placeholder="photorealistic, ultradetailed, cinematic…" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Camera / Lens</Label>
+                  <Input value={prompt.camera} onChange={(e)=>setPrompt(p=>({...p, camera: e.target.value}))} placeholder="85mm, f/1.8, macro, isometric…" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Lighting</Label>
+                  <Input value={prompt.lighting} onChange={(e)=>setPrompt(p=>({...p, lighting: e.target.value}))} placeholder="golden hour, rim light, volumetric…" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Quality Tags</Label>
+                  <Input value={prompt.quality} onChange={(e)=>setPrompt(p=>({...p, quality: e.target.value}))} placeholder="masterpiece, HDR, filmic…" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Extras</Label>
+                  <Input value={prompt.extras} onChange={(e)=>setPrompt(p=>({...p, extras: e.target.value}))} placeholder="optional add-ons" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Negative Prompt</Label>
+                  <Textarea rows={3} value={negative} onChange={(e)=>setNegative(e.target.value)} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Label>Goal</Label>
+                    <Tabs value={goal} onValueChange={setGoal}>
+                      <TabsList>
+                        <TabsTrigger value="portrait">Portrait</TabsTrigger>
+                        <TabsTrigger value="widescreen">Widescreen</TabsTrigger>
+                        <TabsTrigger value="square">Square</TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                  </div>
+                  {model === "FLUX" && (
+                    <div className="flex items-center gap-3">
+                      <Label className="text-xs">Guidance</Label>
+                      <div className="w-28"><Slider defaultValue={[guidance]} min={2.5} max={8} step={0.5} onValueChange={(v)=>setGuidance(v[0])} /></div>
+                      <Badge variant="outline">{guidance.toFixed(1)}</Badge>
+                    </div>
+                  )}
+                </div>
+                <Separator className="my-2" />
+                <div className="space-y-2">
+                  <Label>Positive Prompt</Label>
+                  <Textarea readOnly rows={4} value={builtPrompt} />
+                  <CopyButton text={builtPrompt} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Recommended Settings</Label>
+                  <div className="rounded-xl border border-slate-800 p-3 text-xs space-y-1 bg-slate-950/50">
+                    <div>Model: <b>{model}</b></div>
+                    <div>Sampler: <b>{settingHint.sampler}</b></div>
+                    <div>Steps: <b>{settingHint.steps}</b> {model === "FLUX" ? `(CFG=1, guidance ~${settingHint.guidance || 4.5})` : `(CFG ≈ ${settingHint.cfg})`}</div>
+                    <div>Canvas: <b>{settingHint.size}</b></div>
+                    <div>Refine: <b>{settingHint.refine}</b></div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </aside>
+
+          {/* Main content */}
+          <main ref={contentRef} className="space-y-6">
+            <SectionBase />
+            <SectionRefine />
+            <SectionTargeted />
+            <SectionWorkflows />
+            <SectionBest />
+            <footer className="py-6 text-center text-xs text-slate-400">Built for ComfyUI creators. Tailwind + shadcn/ui • Interactive guide • On-page AI assistant</footer>
+          </main>
+        </div>
+
+        {/* Floating Assistant */}
+        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
+          {openAssistant && (
+            <Card className="w-[min(92vw,420px)] shadow-2xl border-emerald-600/30">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base"><Bot className="h-5 w-5 text-emerald-400"/> Comfy Assistant</CardTitle>
+                <CardDescription>Generate prompts • Recommend samplers • Plan refinements</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-64 overflow-y-auto rounded-lg border border-slate-800 p-3 bg-slate-950/50 space-y-3">
+                  {chat.map((m, i) => (
+                    <div key={i} className={cx("text-sm", m.role === "assistant" ? "text-slate-100" : "text-slate-300") }>
+                      <div className="text-xs uppercase tracking-wide mb-1 text-slate-400">{m.role}</div>
+                      <pre className="whitespace-pre-wrap leading-6">{m.text}</pre>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <Input placeholder="Ask for a prompt, sampler, or step plan…" value={msg} onChange={(e)=>setMsg(e.target.value)} onKeyDown={(e)=> e.key === 'Enter' && handleSend()} />
+                  <Button onClick={handleSend} className="gap-2"><Send className="h-4 w-4"/>Send</Button>
+                </div>
+                <div className="mt-2 text-[11px] text-slate-400">Tip: try “generate prompt for cyberpunk alley portrait”, “sampler for SDXL face refine”, or “node graph for FLUX”.</div>
+              </CardContent>
+            </Card>
+          )}
+          <Button size="lg" className="rounded-full h-12 w-12 p-0 shadow-lg bg-emerald-600 hover:bg-emerald-500" onClick={()=>setOpenAssistant(s=>!s)}>
+            <Bot className="h-5 w-5"/>
+          </Button>
+        </div>
+      </div>
+    </TooltipProvider>
+  );
+}
+
+// =========================================================
+// Small Flow Diagram component
+// =========================================================
+function FlowDiagram({ nodes }) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {nodes.map((n, i) => (
+        <div key={i} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm">
+          <span>{n}</span>
+          {i < nodes.length - 1 && <ChevronRight className="h-4 w-4 text-slate-500"/>}
+        </div>
+      ))}
     </div>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const accordions = document.querySelectorAll('.accordion-item');
-            accordions.forEach(item => {
-                const header = item.querySelector('.accordion-header');
-                const content = item.querySelector('.accordion-content');
-                const icon = header.querySelector('span');
-
-                header.addEventListener('click', () => {
-                    if (content.style.maxHeight) {
-                        content.style.maxHeight = null;
-                        icon.style.transform = 'rotate(0deg)';
-                    } else {
-                        content.style.maxHeight = content.scrollHeight + 'px';
-                        icon.style.transform = 'rotate(180deg)';
-                    }
-                });
-            });
-
-            const mobileNav = document.getElementById('mobile-nav');
-            mobileNav.addEventListener('change', () => {
-                const sectionId = mobileNav.value;
-                document.querySelector(sectionId).scrollIntoView({ behavior: 'smooth' });
-            });
-
-            const desktopNavLinks = document.querySelectorAll('#desktop-nav a');
-            const sections = document.querySelectorAll('section');
-
-            const observerOptions = {
-                root: null,
-                rootMargin: '0px',
-                threshold: 0.3
-            };
-
-            const observer = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        const id = entry.target.id;
-                        desktopNavLinks.forEach(link => {
-                            link.classList.toggle('active', link.getAttribute('href') === `#${id}`);
-                        });
-                        mobileNav.value = `#${id}`;
-                    }
-                });
-            }, observerOptions);
-
-            sections.forEach(section => {
-                observer.observe(section);
-            });
-            
-            // Gemini API Integration
-            const API_KEY = ""; // Kept empty as per instructions
-            const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${API_KEY}`;
-            
-            async function callGemini(prompt, retries = 3, delay = 1000) {
-                try {
-                    const payload = {
-                        contents: [{ parts: [{ text: prompt }] }],
-                    };
-                    const response = await fetch(API_URL, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                    if (!response.ok) {
-                        if (response.status === 429 && retries > 0) {
-                            await new Promise(res => setTimeout(res, delay));
-                            return callGemini(prompt, retries - 1, delay * 2);
-                        }
-                        throw new Error(`API call failed with status: ${response.status}`);
-                    }
-                    const result = await response.json();
-                    return result.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, I couldn't generate a response.";
-                } catch (error) {
-                    console.error("Gemini API call error:", error);
-                    return `An error occurred: ${error.message}. Please check the console for details.`;
-                }
-            }
-            
-            // -- Prompt Enhancer --
-            const enhancePromptBtn = document.getElementById('enhance-prompt-btn');
-            const promptInput = document.getElementById('prompt-input');
-            const promptOutputContainer = document.getElementById('prompt-output-container');
-            const promptOutput = document.getElementById('prompt-output');
-            const promptLoader = document.getElementById('prompt-loader');
-            
-            enhancePromptBtn.addEventListener('click', async () => {
-                const userInput = promptInput.value.trim();
-                if (!userInput) {
-                    alert('Please enter a prompt idea.');
-                    return;
-                }
-                
-                promptLoader.style.display = 'block';
-                promptOutputContainer.style.display = 'none';
-                
-                const systemPrompt = `You are an expert in writing prompts for AI image generation models like Stable Diffusion. Take the user's simple idea and expand it into a detailed, descriptive, and artistic prompt. Focus on scene, lighting, mood, and style. Do not use markdown or formatting. The output should be a single block of text. User idea: "${userInput}"`;
-                
-                const result = await callGemini(systemPrompt);
-                
-                promptOutput.textContent = result;
-                promptLoader.style.display = 'none';
-                promptOutputContainer.style.display = 'block';
-            });
-            
-            // -- AI Troubleshooter --
-            const troubleshootBtn = document.getElementById('troubleshoot-btn');
-            const troubleInput = document.getElementById('trouble-input');
-            const troubleOutputContainer = document.getElementById('trouble-output-container');
-            const troubleOutput = document.getElementById('trouble-output');
-            const troubleLoader = document.getElementById('trouble-loader');
-
-            troubleshootBtn.addEventListener('click', async () => {
-                const userInput = troubleInput.value.trim();
-                if (!userInput) {
-                    alert('Please describe your problem.');
-                    return;
-                }
-
-                troubleLoader.style.display = 'block';
-                troubleOutputContainer.style.display = 'none';
-
-                const systemPrompt = `You are a ComfyUI expert. A user is having an issue with their image generation. Based on their problem description, suggest specific nodes, parameters (like CFG, denoise, sampler steps), or techniques (like inpainting) they should investigate to fix it. Provide a concise, actionable list of suggestions in plain text. User problem: "${userInput}"`;
-
-                const result = await callGemini(systemPrompt);
-
-                troubleOutput.textContent = result;
-                troubleLoader.style.display = 'none';
-                troubleOutputContainer.style.display = 'block';
-            });
-            
-            // -- Workflow Explainer --
-            const modal = document.getElementById('modal');
-            const modalTitle = document.getElementById('modal-title');
-            const modalBody = document.getElementById('modal-body');
-            const modalClose = document.getElementById('modal-close');
-            
-            const workflowExplainers = {
-                sdxl: {
-                    title: "✨ SDXL Workflow Explained",
-                    prompt: "Explain the purpose of a two-stage base and refiner workflow in ComfyUI for SDXL. Describe how the Base KSampler creates the composition and the Refiner KSampler adds high-frequency detail, and why this is a good approach. Keep it concise and easy for a beginner to understand."
-                },
-                flux: {
-                    title: "✨ FLUX Workflow Explained",
-                    prompt: "Explain why a FLUX workflow in ComfyUI is simpler and faster than a traditional SDXL workflow. Mention its efficiency, high native resolution, and that it doesn't typically require a separate refiner model. Keep the explanation brief and clear."
-                }
-            };
-            
-            document.querySelectorAll('[data-workflow]').forEach(button => {
-                button.addEventListener('click', async () => {
-                    const workflowKey = button.dataset.workflow;
-                    const explainer = workflowExplainers[workflowKey];
-                    
-                    modalTitle.textContent = explainer.title;
-                    modalBody.innerHTML = '<div class="flex justify-center"><div class="loader"></div></div>';
-                    modal.classList.add('visible');
-
-                    const explanation = await callGemini(explainer.prompt);
-                    modalBody.textContent = explanation;
-                });
-            });
-
-            modalClose.addEventListener('click', () => modal.classList.remove('visible'));
-            modal.addEventListener('click', (e) => {
-                if (e.target === modal) {
-                    modal.classList.remove('visible');
-                }
-            });
-        });
-    </script>
-</body>
-</html>
+  );
+}
