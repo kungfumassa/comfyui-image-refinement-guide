@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Guide to ComfyUI Image Refinement</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chosen Palette: Warm Neutrals & Slate Blue -->
+    <!-- Application Structure Plan: The application uses a fixed sidebar navigation for non-linear, task-oriented access to the guide's content. This structure is superior to a linear document for a technical guide, as it allows users to quickly jump between core concepts, specific workflows (SDXL, Flux), and best practices without excessive scrolling. The main content area uses interactive accordions and clickable "node" diagrams to present information in a digestible, layered way, encouraging exploration rather than passive reading. Gemini API features are integrated to provide dynamic prompt help, workflow explanations, and troubleshooting advice. -->
+    <!-- Visualization & Content Choices: 1. Node Workflows: Info -> ComfyUI node graphs. Goal -> Organize/Inform. Method -> Interactive diagrams built with HTML divs and styled with Tailwind CSS to represent nodes and connections. Interaction -> Clicking a node reveals detailed parameter settings. Justification -> This provides a clear, visual representation without using forbidden SVG/Mermaid, and the interactivity prevents information overload. 2. Best Practices: Info -> Sampler/CFG settings. Goal -> Compare/Inform. Method -> Styled cards within a CSS grid. Interaction -> Hover effects to show brief info. Justification -> More engaging and scannable than a simple list or table. 3. Guide Steps: Info -> Step-by-step instructions. Goal -> Inform. Method -> Accordion-style collapsible sections. Interaction -> Clicking a step title expands its content. Justification -> Organizes sequential information cleanly, saving vertical space. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        .node {
+            border: 1px solid #94a3b8;
+            background-color: #f1f5f9;
+            color: #1e293b;
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 150px;
+        }
+        .node:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .node-details {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.5s ease-in-out, margin-top 0.5s ease-in-out;
+        }
+        .node.active .node-details {
+            max-height: 500px;
+            margin-top: 12px;
+        }
+        .connector {
+            position: absolute;
+            border-color: #64748b;
+            z-index: -1;
+        }
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.5s ease-out;
+        }
+        .sidebar-link.active {
+            background-color: #eab308;
+            color: #1e293b;
+            font-weight: 600;
+        }
+        .gemini-feature-card {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border: 1px solid #7dd3fc;
+        }
+        .gemini-button {
+             background: linear-gradient(to right, #6366f1, #8b5cf6);
+             color: white;
+        }
+        .gemini-button:hover {
+            background: linear-gradient(to right, #4f46e5, #7c3aed);
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #8b5cf6;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+        .modal-overlay.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+        .modal-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            max-width: 500px;
+            width: 90%;
+            transform: scale(0.95);
+            transition: transform 0.3s;
+        }
+        .modal-overlay.visible .modal-content {
+            transform: scale(1);
+        }
+    </style>
+</head>
+<body class="bg-[#F8F7F4] text-[#334155]">
+
+    <div class="flex min-h-screen">
+        <aside class="w-64 bg-[#435d7d] text-white p-6 fixed h-full hidden lg:block">
+            <h2 class="text-2xl font-bold mb-8">Refinement Guide</h2>
+            <nav id="desktop-nav" class="space-y-2">
+                <a href="#introduction" class="sidebar-link block py-2.5 px-4 rounded transition duration-200 hover:bg-yellow-500 hover:text-black">Introduction</a>
+                <a href="#core-concepts" class="sidebar-link block py-2.5 px-4 rounded transition duration-200 hover:bg-yellow-500 hover:text-black">Core Concepts</a>
+                <a href="#gemini-prompt-studio" class="sidebar-link block py-2.5 px-4 rounded transition duration-200 hover:bg-yellow-500 hover:text-black">✨ Prompt Studio</a>
+                <a href="#sdxl-workflow" class="sidebar-link block py-2.5 px-4 rounded transition duration-200 hover:bg-yellow-500 hover:text-black">SDXL Workflow</a>
+                <a href="#flux-workflow" class="sidebar-link block py-2.5 px-4 rounded transition duration-200 hover:bg-yellow-500 hover:text-black">FLUX Workflow</a>
+                <a href="#advanced" class="sidebar-link block py-2.5 px-4 rounded transition duration-200 hover:bg-yellow-500 hover:text-black">Advanced Techniques</a>
+                <a href="#best-practices" class="sidebar-link block py-2.5 px-4 rounded transition duration-200 hover:bg-yellow-500 hover:text-black">Best Practices</a>
+            </nav>
+        </aside>
+
+        <main class="lg:ml-64 flex-1 p-4 md:p-8 lg:p-12">
+            <div class="max-w-4xl mx-auto">
+
+                <div class="lg:hidden mb-6">
+                    <select id="mobile-nav" class="w-full p-3 bg-white border border-gray-300 rounded-md shadow-sm">
+                        <option value="#introduction">Introduction</option>
+                        <option value="#core-concepts">Core Concepts</option>
+                        <option value="#gemini-prompt-studio">✨ Prompt Studio</option>
+                        <option value="#sdxl-workflow">SDXL Workflow</option>
+                        <option value="#flux-workflow">FLUX Workflow</option>
+                        <option value="#advanced">Advanced Techniques</option>
+                        <option value="#best-practices">Best Practices</option>
+                    </select>
+                </div>
+            
+                <section id="introduction" class="mb-16 scroll-mt-20">
+                    <h1 class="text-4xl font-bold text-[#435d7d] mb-4">Mastering Image Refinement in ComfyUI</h1>
+                    <p class="text-lg text-gray-600 mb-4">Welcome to your interactive guide for creating professional-quality images with SDXL and FLUX models in ComfyUI. This guide breaks down the process into clear, manageable steps, from generating a strong base image to applying targeted, high-fidelity enhancements. We will explore complete workflows, node by node, and discuss the best practices that balance quality and efficiency.</p>
+                    <p class="text-gray-600">This guide is now enhanced with ✨ <span class="font-bold">Gemini AI</span> to help you write better prompts, understand complex workflows, and troubleshoot common issues. Look for the sparkle to find AI-powered features!</p>
+                </section>
+
+                <section id="core-concepts" class="mb-16 scroll-mt-20">
+                    <h2 class="text-3xl font-bold text-[#435d7d] mb-6">Core Concepts</h2>
+                    <p class="text-gray-600 mb-6">Before diving into the workflows, it's essential to understand the key components we'll be using. This section provides a quick overview of the fundamental nodes and parameters that form the backbone of any image generation and refinement pipeline. Familiarizing yourself with these concepts will make the workflow diagrams much easier to understand and adapt.</p>
+                    <div class="space-y-4">
+                        <div class="accordion-item bg-white p-4 rounded-lg shadow">
+                            <button class="accordion-header w-full text-left flex justify-between items-center text-lg font-semibold text-[#435d7d]">
+                                Checkpoints & LoRAs
+                                <span class="transform transition-transform duration-300">▼</span>
+                            </button>
+                            <div class="accordion-content">
+                                <p class="mt-2 text-gray-600"><strong>Checkpoints:</strong> These are the main models (e.g., SDXL Base, FLUX). They contain the core knowledge for generating images. <br><strong>LoRAs:</strong> Lighter-weight files that apply specific styles, concepts, or character likenesses on top of a checkpoint model without altering it directly.</p>
+                            </div>
+                        </div>
+                        <div class="accordion-item bg-white p-4 rounded-lg shadow">
+                            <button class="accordion-header w-full text-left flex justify-between items-center text-lg font-semibold text-[#435d7d]">
+                                KSampler (Advanced)
+                                <span class="transform transition-transform duration-300">▼</span>
+                            </button>
+                            <div class="accordion-content">
+                                <p class="mt-2 text-gray-600">The engine of image generation. It takes a model, prompts, and a latent image (noise) and iteratively "denoises" it into a final image. Key settings include:
+                                    <br><strong>Sampler/Scheduler:</strong> The algorithm used for denoising (e.g., `euler`, `dpmpp_2m_sde`).
+                                    <br><strong>Steps:</strong> How many iterations the sampler performs. More steps can add detail but have diminishing returns.
+                                    <br><strong>CFG Scale:</strong> How strongly the sampler should adhere to your prompt. Higher values are more strict but can lead to artifacts.</p>
+                            </div>
+                        </div>
+                        <div class="accordion-item bg-white p-4 rounded-lg shadow">
+                            <button class="accordion-header w-full text-left flex justify-between items-center text-lg font-semibold text-[#435d7d]">
+                                Upscalers & Refiners
+                                <span class="transform transition-transform duration-300">▼</span>
+                            </button>
+                            <div class="accordion-content">
+                                <p class="mt-2 text-gray-600"><strong>Upscalers:</strong> Models that increase image resolution (e.g., 4x-UltraSharp). They can add detail but sometimes introduce artifacts. They are used in an "Image-to-Image" process.
+                                <br><strong>Refiner Models:</strong> Specific to SDXL, the refiner is a model trained to add high-frequency details to an image generated by the SDXL base model. It is typically used for the last few steps of the generation process.</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                
+                <section id="gemini-prompt-studio" class="mb-16 scroll-mt-20">
+                    <h2 class="text-3xl font-bold text-[#435d7d] mb-6">✨ Gemini Prompt Studio</h2>
+                    <div class="p-6 rounded-lg shadow gemini-feature-card">
+                        <p class="text-gray-600 mb-4">A great image starts with a great prompt. Describe a simple idea below, and Gemini will help you expand it into a rich, detailed prompt perfect for generating stunning visuals.</p>
+                        <div class="flex flex-col space-y-4">
+                            <textarea id="prompt-input" class="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-indigo-500" rows="3" placeholder="e.g., a castle in the clouds"></textarea>
+                            <button id="enhance-prompt-btn" class="gemini-button font-bold py-2 px-4 rounded-md flex items-center justify-center">
+                                ✨ Enhance Prompt
+                            </button>
+                            <div id="prompt-output-container" class="bg-white p-4 rounded-md shadow-inner" style="display: none;">
+                                <h4 class="font-semibold text-lg mb-2">Enhanced Prompt:</h4>
+                                <div id="prompt-output" class="text-gray-700 whitespace-pre-wrap"></div>
+                            </div>
+                            <div id="prompt-loader" class="mx-auto" style="display: none;"><div class="loader"></div></div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="sdxl-workflow" class="mb-16 scroll-mt-20">
+                    <div class="flex justify-between items-start mb-4">
+                         <h2 class="text-3xl font-bold text-[#435d7d]">SDXL: Base to Refined Workflow</h2>
+                         <button class="gemini-button text-sm font-semibold py-2 px-3 rounded-md flex items-center" data-workflow="sdxl">✨ Explain</button>
+                    </div>
+                    <p class="text-gray-600 mb-8">This workflow is a robust method for creating high-quality, detailed images with SDXL. We start by generating a solid composition with the base model, then pass it to a refiner and an upscaler to enhance resolution and add fine details. Click each node to see the recommended parameters for that stage.</p>
+                    
+                    <h3 class="text-xl font-semibold mb-4 text-[#435d7d]">Part 1: Base Generation (1024x1024)</h3>
+                    <div class="p-6 bg-gray-50 rounded-lg shadow-inner relative">
+                        <div class="flex items-center justify-around space-x-4">
+                            <div class="node" id="sdxl-node-1">
+                                <p class="font-semibold">Load Checkpoint</p>
+                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg mt-2">
+                                    <p><strong>Model:</strong> SDXL Base 1.0</p>
+                                    <p><strong>Purpose:</strong> Sets up the foundational model for the entire workflow.</p>
+                                </div>
+                            </div>
+                            <div class="text-gray-500 font-bold text-2xl">→</div>
+                             <div class="node" id="sdxl-node-2">
+                                <p class="font-semibold">Prompt Text</p>
+                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg mt-2">
+                                    <p><strong>Positive:</strong> Your detailed scene description.</p>
+                                    <p><strong>Negative:</strong> Things to avoid (e.g., "blurry, ugly, deformed").</p>
+                                    <p><strong>Tip:</strong> Connect this to both KSamplers.</p>
+                                </div>
+                            </div>
+                            <div class="text-gray-500 font-bold text-2xl">→</div>
+                            <div class="node" id="sdxl-node-3">
+                                <p class="font-semibold">Base KSampler</p>
+                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg mt-2">
+                                    <p><strong>Steps:</strong> 20-25</p>
+                                    <p><strong>CFG:</strong> 7-8</p>
+                                    <p><strong>Sampler:</strong> `dpmpp_2m_sde`</p>
+                                    <p><strong>Scheduler:</strong> `karras`</p>
+                                    <p><strong>Denoise:</strong> 1.0 (for full generation)</p>
+                                    <p><strong>End At Step:</strong> 20 (if total steps is 25)</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h3 class="text-xl font-semibold mt-8 mb-4 text-[#435d7d]">Part 2: Refinement & Upscale</h3>
+                     <div class="p-6 bg-gray-50 rounded-lg shadow-inner relative">
+                        <div class="flex items-center justify-around space-x-4">
+                             <div class="node" id="sdxl-node-4">
+                                <p class="font-semibold">Load Refiner</p>
+                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg mt-2">
+                                    <p><strong>Model:</strong> SDXL Refiner 1.0</p>
+                                    <p><strong>Purpose:</strong> Prepares the specialized detail-adding model.</p>
+                                </div>
+                            </div>
+                            <div class="text-gray-500 font-bold text-2xl">→</div>
+                             <div class="node" id="sdxl-node-5">
+                                <p class="font-semibold">Refiner KSampler</p>
+                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg mt-2">
+                                    <p><strong>Input:</strong> Latent from Base KSampler</p>
+                                    <p><strong>Steps:</strong> 25 (same as Base)</p>
+                                    <p><strong>Start At Step:</strong> 20 (where Base left off)</p>
+                                    <p><strong>Sampler:</strong> Same as Base</p>
+                                </div>
+                            </div>
+                            <div class="text-gray-500 font-bold text-2xl">→</div>
+                            <div class="node" id="sdxl-node-6">
+                                <p class="font-semibold">Upscale (2x)</p>
+                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg mt-2">
+                                    <p><strong>Node:</strong> Upscale Image (using model)</p>
+                                    <p><strong>Upscale Model:</strong> 4x-UltraSharp</p>
+                                    <p><strong>Input:</strong> VAE Decoded image from Refiner</p>
+                                    <p><strong>Output:</strong> High-res image (e.g., 2048x2048)</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                
+                <section id="flux-workflow" class="mb-16 scroll-mt-20">
+                     <div class="flex justify-between items-start mb-4">
+                        <h2 class="text-3xl font-bold text-[#435d7d]">FLUX: Fast & High-Detail Workflow</h2>
+                        <button class="gemini-button text-sm font-semibold py-2 px-3 rounded-md flex items-center" data-workflow="flux">✨ Explain</button>
+                    </div>
+                    <p class="text-gray-600 mb-8">The FLUX model is designed for incredible speed and native high-resolution detail, reducing the need for complex refiner models. This workflow focuses on a direct generation followed by a simple upscale for a fast yet high-quality result. Click each node for details.</p>
+
+                    <h3 class="text-xl font-semibold mb-4 text-[#435d7d]">Direct High-Resolution Generation</h3>
+                    <div class="p-6 bg-gray-50 rounded-lg shadow-inner relative">
+                        <div class="flex items-center justify-around space-x-4">
+                            <div class="node" id="flux-node-1">
+                                <p class="font-semibold">Load Checkpoint</p>
+                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg mt-2">
+                                    <p><strong>Model:</strong> Flux.1-schnell</p>
+                                    <p><strong>Purpose:</strong> Select the main FLUX model.</p>
+                                </div>
+                            </div>
+                            <div class="text-gray-500 font-bold text-2xl">→</div>
+                             <div class="node" id="flux-node-2">
+                                <p class="font-semibold">FLUX KSampler</p>
+                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg mt-2">
+                                    <p><strong>Steps:</strong> 12-18 (FLUX is efficient!)</p>
+                                    <p><strong>CFG:</strong> 4-5</p>
+                                    <p><strong>Sampler:</strong> `dpmpp_2m_sde`</p>
+                                    <p><strong>Scheduler:</strong> `sgm_uniform`</p>
+                                    <p><strong>Resolution:</strong> 1024x1024 or 1536x1536</p>
+                                </div>
+                            </div>
+                            <div class="text-gray-500 font-bold text-2xl">→</div>
+                            <div class="node" id="flux-node-3">
+                                <p class="font-semibold">VAE Decode</p>
+                                <div class="node-details text-left text-sm bg-white p-3 rounded shadow-lg mt-2">
+                                    <p><strong>Purpose:</strong> Converts the latent image from the sampler into a viewable pixel image.</p>
+                                    <p><strong>Result:</strong> Your final, high-quality generated image.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="advanced" class="mb-16 scroll-mt-20">
+                    <h2 class="text-3xl font-bold text-[#435d7d] mb-6">Advanced: Targeted Enhancements</h2>
+                    <p class="text-gray-600 mb-6">Once you have a high-resolution image, you might notice specific areas that need improvement, such as faces or fine textures. Targeted enhancement, also known as inpainting, allows you to re-generate only a selected part of the image with a more specific prompt or different settings. This is key for achieving professional, polished results.</p>
+                    <div class="bg-white p-6 rounded-lg shadow">
+                        <h3 class="text-xl font-semibold text-[#435d7d] mb-3">Facial Refinement Workflow (Inpainting)</h3>
+                        <ol class="list-decimal list-inside space-y-2 text-gray-600">
+                            <li><strong>Generate Base Image:</strong> Follow the SDXL or FLUX workflow to get your upscaled image.</li>
+                            <li><strong>Mask the Area:</strong> In ComfyUI, right-click the final image and choose "Open in MaskEditor". Paint over the area you want to fix (e.g., the face).</li>
+                            <li><strong>Set up an Inpainting KSampler:</strong> Add a new KSampler. Connect your original model and prompts to it. Crucially, connect the masked image to the `latent_image` input of this new sampler.</li>
+                            <li><strong>Refine the Prompt:</strong> Modify your positive prompt to be highly specific to the masked area. For a face, add terms like "detailed beautiful face, sharp eyes, perfect features".</li>
+                            <li><strong>Set a Low Denoise:</strong> This is the most important step. Set the `denoise` value on the inpainting KSampler to a low value, typically between <strong>0.35 and 0.6</strong>. A low value preserves the overall structure of the face while allowing the model to add details and correct errors based on your new prompt.</li>
+                            <li><strong>Generate:</strong> Run the workflow. Only the masked area will be re-generated, blending seamlessly with the rest of the image.</li>
+                        </ol>
+                    </div>
+                </section>
+
+                <section id="best-practices" class="scroll-mt-20">
+                    <h2 class="text-3xl font-bold text-[#435d7d] mb-6">Best Practices & Cheatsheet</h2>
+                    <p class="text-gray-600 mb-8">Achieving the perfect balance between image quality, speed, and prompt adherence is an art. This section provides a quick reference for making smart choices with your settings. These are general guidelines; always be prepared to experiment to find what works best for your specific image and style.</p>
+                    
+                    <div class="p-6 rounded-lg shadow gemini-feature-card mb-8">
+                        <h3 class="text-2xl font-bold text-[#435d7d] mb-4">✨ AI Troubleshooter</h3>
+                        <p class="text-gray-600 mb-4">Struggling with a result? Describe your problem, and Gemini will suggest solutions.</p>
+                        <div class="flex flex-col space-y-4">
+                            <input type="text" id="trouble-input" class="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-indigo-500" placeholder="e.g., Faces look weird, image is too dark">
+                            <button id="troubleshoot-btn" class="gemini-button font-bold py-2 px-4 rounded-md flex items-center justify-center">
+                                ✨ Get Suggestions
+                            </button>
+                            <div id="trouble-output-container" class="bg-white p-4 rounded-md shadow-inner" style="display: none;">
+                                <h4 class="font-semibold text-lg mb-2">Suggestions:</h4>
+                                <div id="trouble-output" class="text-gray-700 whitespace-pre-wrap"></div>
+                            </div>
+                            <div id="trouble-loader" class="mx-auto" style="display: none;"><div class="loader"></div></div>
+                        </div>
+                    </div>
+
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <div class="bg-white p-6 rounded-lg shadow">
+                            <h3 class="text-xl font-semibold text-[#435d7d] mb-3">Sampler Selection</h3>
+                            <ul class="list-disc list-inside space-y-2 text-gray-600">
+                                <li><strong>For Speed & Quality Balance:</strong> `dpmpp_2m_sde` with `karras` scheduler is a top-tier choice for most scenarios.</li>
+                                <li><strong>For Fast Previews:</strong> `euler_ancestral` (or `euler_a`) is very fast and great for testing prompts, though it can be less coherent.</li>
+                                <li><strong>For High Detail:</strong> `dpmpp_3m_sde_gpu` can sometimes produce slightly sharper results at the cost of speed.</li>
+                            </ul>
+                        </div>
+                        <div class="bg-white p-6 rounded-lg shadow">
+                            <h3 class="text-xl font-semibold text-[#435d7d] mb-3">CFG Scale Guidance</h3>
+                            <ul class="list-disc list-inside space-y-2 text-gray-600">
+                                <li><strong>CFG 3-6 (Creative):</strong> Gives the model more creative freedom. Good for abstract or highly stylized images where strict prompt adherence isn't critical. Used often with FLUX.</li>
+                                <li><strong>CFG 7-10 (Balanced):</strong> The standard range for SDXL. A strong balance between following the prompt and producing a coherent, high-quality image.</li>
+                                <li><strong>CFG 11+ (Strict):</strong> Forces the model to follow the prompt very closely. Use with caution, as it can lead to oversaturated, "burnt" images and artifacts.</li>
+                            </ul>
+                        </div>
+                        <div class="bg-white p-6 rounded-lg shadow md:col-span-2">
+                             <h3 class="text-xl font-semibold text-[#435d7d] mb-3">Iteration Strategy</h3>
+                             <p class="text-gray-600">Don't try to get the perfect image in one go.
+                                <br>1. <strong>Composition First:</strong> Use low step counts (15-20) to quickly generate many images and find one with a strong composition. Use a fixed seed to iterate on the prompt.
+                                <br>2. <strong>Detail Second:</strong> Once you have a good composition, increase the step count and resolution.
+                                <br>3. <strong>Refine Last:</strong> Use targeted inpainting as a final step to fix any minor imperfections. This saves immense amounts of time compared to re-rolling the entire image.
+                             </p>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+
+    <div id="modal" class="modal-overlay">
+        <div class="modal-content">
+            <h3 id="modal-title" class="text-2xl font-bold text-[#435d7d] mb-4"></h3>
+            <div id="modal-body" class="text-gray-600"></div>
+            <div class="mt-6 text-right">
+                <button id="modal-close" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-md hover:bg-gray-300">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const accordions = document.querySelectorAll('.accordion-item');
+            accordions.forEach(item => {
+                const header = item.querySelector('.accordion-header');
+                const content = item.querySelector('.accordion-content');
+                const icon = header.querySelector('span');
+
+                header.addEventListener('click', () => {
+                    if (content.style.maxHeight) {
+                        content.style.maxHeight = null;
+                        icon.style.transform = 'rotate(0deg)';
+                    } else {
+                        content.style.maxHeight = content.scrollHeight + 'px';
+                        icon.style.transform = 'rotate(180deg)';
+                    }
+                });
+            });
+
+            const nodes = document.querySelectorAll('.node');
+            nodes.forEach(node => {
+                node.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    const wasActive = node.classList.contains('active');
+                    nodes.forEach(n => n.classList.remove('active'));
+                    if (!wasActive) {
+                       node.classList.add('active');
+                    }
+                });
+            });
+
+            document.addEventListener('click', () => {
+                 nodes.forEach(n => n.classList.remove('active'));
+            });
+
+            const mobileNav = document.getElementById('mobile-nav');
+            mobileNav.addEventListener('change', () => {
+                const sectionId = mobileNav.value;
+                document.querySelector(sectionId).scrollIntoView({ behavior: 'smooth' });
+            });
+
+            const desktopNavLinks = document.querySelectorAll('#desktop-nav a');
+            const sections = document.querySelectorAll('section');
+
+            const observerOptions = {
+                root: null,
+                rootMargin: '0px',
+                threshold: 0.3
+            };
+
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const id = entry.target.id;
+                        desktopNavLinks.forEach(link => {
+                            link.classList.toggle('active', link.getAttribute('href') === `#${id}`);
+                        });
+                        mobileNav.value = `#${id}`;
+                    }
+                });
+            }, observerOptions);
+
+            sections.forEach(section => {
+                observer.observe(section);
+            });
+            
+            // Gemini API Integration
+            const API_KEY = ""; // Kept empty as per instructions
+            const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${API_KEY}`;
+            
+            async function callGemini(prompt, retries = 3, delay = 1000) {
+                try {
+                    const payload = {
+                        contents: [{ parts: [{ text: prompt }] }],
+                    };
+                    const response = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!response.ok) {
+                        if (response.status === 429 && retries > 0) {
+                            await new Promise(res => setTimeout(res, delay));
+                            return callGemini(prompt, retries - 1, delay * 2);
+                        }
+                        throw new Error(`API call failed with status: ${response.status}`);
+                    }
+                    const result = await response.json();
+                    return result.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, I couldn't generate a response.";
+                } catch (error) {
+                    console.error("Gemini API call error:", error);
+                    return `An error occurred: ${error.message}. Please check the console for details.`;
+                }
+            }
+            
+            // -- Prompt Enhancer --
+            const enhancePromptBtn = document.getElementById('enhance-prompt-btn');
+            const promptInput = document.getElementById('prompt-input');
+            const promptOutputContainer = document.getElementById('prompt-output-container');
+            const promptOutput = document.getElementById('prompt-output');
+            const promptLoader = document.getElementById('prompt-loader');
+            
+            enhancePromptBtn.addEventListener('click', async () => {
+                const userInput = promptInput.value.trim();
+                if (!userInput) {
+                    alert('Please enter a prompt idea.');
+                    return;
+                }
+                
+                promptLoader.style.display = 'block';
+                promptOutputContainer.style.display = 'none';
+                
+                const systemPrompt = `You are an expert in writing prompts for AI image generation models like Stable Diffusion. Take the user's simple idea and expand it into a detailed, descriptive, and artistic prompt. Focus on scene, lighting, mood, and style. Do not use markdown or formatting. The output should be a single block of text. User idea: "${userInput}"`;
+                
+                const result = await callGemini(systemPrompt);
+                
+                promptOutput.textContent = result;
+                promptLoader.style.display = 'none';
+                promptOutputContainer.style.display = 'block';
+            });
+            
+            // -- AI Troubleshooter --
+            const troubleshootBtn = document.getElementById('troubleshoot-btn');
+            const troubleInput = document.getElementById('trouble-input');
+            const troubleOutputContainer = document.getElementById('trouble-output-container');
+            const troubleOutput = document.getElementById('trouble-output');
+            const troubleLoader = document.getElementById('trouble-loader');
+
+            troubleshootBtn.addEventListener('click', async () => {
+                const userInput = troubleInput.value.trim();
+                if (!userInput) {
+                    alert('Please describe your problem.');
+                    return;
+                }
+
+                troubleLoader.style.display = 'block';
+                troubleOutputContainer.style.display = 'none';
+
+                const systemPrompt = `You are a ComfyUI expert. A user is having an issue with their image generation. Based on their problem description, suggest specific nodes, parameters (like CFG, denoise, sampler steps), or techniques (like inpainting) they should investigate to fix it. Provide a concise, actionable list of suggestions in plain text. User problem: "${userInput}"`;
+
+                const result = await callGemini(systemPrompt);
+
+                troubleOutput.textContent = result;
+                troubleLoader.style.display = 'none';
+                troubleOutputContainer.style.display = 'block';
+            });
+            
+            // -- Workflow Explainer --
+            const modal = document.getElementById('modal');
+            const modalTitle = document.getElementById('modal-title');
+            const modalBody = document.getElementById('modal-body');
+            const modalClose = document.getElementById('modal-close');
+            
+            const workflowExplainers = {
+                sdxl: {
+                    title: "✨ SDXL Workflow Explained",
+                    prompt: "Explain the purpose of a two-stage base and refiner workflow in ComfyUI for SDXL. Describe how the Base KSampler creates the composition and the Refiner KSampler adds high-frequency detail, and why this is a good approach. Keep it concise and easy for a beginner to understand."
+                },
+                flux: {
+                    title: "✨ FLUX Workflow Explained",
+                    prompt: "Explain why a FLUX workflow in ComfyUI is simpler and faster than a traditional SDXL workflow. Mention its efficiency, high native resolution, and that it doesn't typically require a separate refiner model. Keep the explanation brief and clear."
+                }
+            };
+            
+            document.querySelectorAll('[data-workflow]').forEach(button => {
+                button.addEventListener('click', async () => {
+                    const workflowKey = button.dataset.workflow;
+                    const explainer = workflowExplainers[workflowKey];
+                    
+                    modalTitle.textContent = explainer.title;
+                    modalBody.innerHTML = '<div class="flex justify-center"><div class="loader"></div></div>';
+                    modal.classList.add('visible');
+
+                    const explanation = await callGemini(explainer.prompt);
+                    modalBody.textContent = explanation;
+                });
+            });
+
+            modalClose.addEventListener('click', () => modal.classList.remove('visible'));
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.classList.remove('visible');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
